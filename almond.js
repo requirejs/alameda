@@ -176,23 +176,27 @@ var requirejs, require, define;
                 count = 0,
                 result = [],
                 d = prim();
-            ary.forEach(function (p, i) {
-                p.then(function (val) {
-                    if (hasErr) {
-                        return;
-                    }
-                    count += 1;
-                    result[i] = val;
-                    if (count === ary.length) {
-                        d.resolve(result);
-                    }
-                }, function (err) {
-                    if (!hasErr) {
-                        d.reject(err);
-                        hasErr = true;
-                    }
+
+            if (!ary || !ary.length) {
+                d.resolve(result);
+            } else {
+                ary.forEach(function (p, i) {
+                    p.then(function (val) {
+                        if (!hasErr) {
+                            count += 1;
+                            result[i] = val;
+                            if (count === ary.length) {
+                                d.resolve(result);
+                            }
+                        }
+                    }, function (err) {
+                        if (!hasErr) {
+                            d.reject(err);
+                            hasErr = true;
+                        }
+                    });
                 });
-            });
+            }
 
             return d.promise;
         };
