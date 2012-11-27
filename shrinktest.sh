@@ -1,6 +1,6 @@
 #!/bin/sh
-rm almond.min.js.gz
-~/scripts/closure.sh almond.js almond.min.js
-gzip almond.min.js
-ls -la almond.min.js.gz
+rm dynamite.min.js.gz
+~/scripts/closure.sh dynamite.js dynamite.min.js
+gzip dynamite.min.js
+ls -la dynamite.min.js.gz
 

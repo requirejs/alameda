@@ -1,7 +1,7 @@
 /**
- * almond 0.2.1 Copyright (c) 2011-2012, The Dojo Foundation All Rights Reserved.
+ * dynamite 0.0.1 Copyright (c) 2011-2012, The Dojo Foundation All Rights Reserved.
  * Available via the MIT or new BSD license.
- * see: http://github.com/jrburke/almond for details
+ * see: http://github.com/requirejs/dynamite for details
  */
 //Going sloppy to avoid 'use strict' string cost, but strict practices should
 //be followed.
