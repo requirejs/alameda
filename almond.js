@@ -332,15 +332,16 @@ var requirejs, require, define;
         };
     }
 
+    function resolve(name, d, value) {
+        if (name) {
+            defined[name] = value;
+        }
+        d.resolve(value);
+    }
+
     function makeNormalize(relName) {
         return function (name) {
             return normalize(name, relName);
-        };
-    }
-
-    function makeLoad(depName) {
-        return function (value) {
-            defined[depName] = value;
         };
     }
 
@@ -358,15 +359,15 @@ var requirejs, require, define;
         return d;
     }
 
-    function resolve(name, d, value) {
-        if (name) {
-            defined[name] = value;
-        }
-        d.resolve(value);
+
+    function makeLoad(depName) {
+        return function (value) {
+            resolve(depName, getDefer(depName), value);
+        };
     }
 
     function load(name) {
-        var url = config.baseUrl + 'name' + '.js',
+        var url = config.baseUrl + name + '.js',
             script = document.createElement('script');
         script.src = url;
 
@@ -383,14 +384,26 @@ var requirejs, require, define;
         document.head.appendChild(script);
     }
 
-    function callDep(name) {
+    function callDep(map, relName) {
+        var args,
+            name = map.f;
+
         if (hasProp(waiting, name)) {
-            var args = waiting[name];
+            args = waiting[name];
             delete waiting[name];
             defining[name] = true;
             main.apply(undef, args);
         } else if (!hasProp(deferreds, name)) {
-            load(name);
+            if (map.pr) {
+                return callDep(makeMap(map.pr)).then(function (plugin) {
+                    //Redo map now that plugin is known to be loaded
+                    var newMap = makeMap(name, relName);
+                    plugin.load(newMap.n, makeRequire(relName, true), makeLoad(newMap.f), {});
+                    return getDefer(newMap.f).promise;
+                });
+            } else {
+                load(name);
+            }
         }
 
         return getDefer(name).promise;
@@ -423,7 +436,7 @@ var requirejs, require, define;
 
         if (prefix) {
             prefix = normalize(prefix, relName);
-            plugin = callDep(prefix);
+            plugin = hasProp(defined, prefix) && defined[prefix];
         }
 
         //Normalize according
@@ -438,17 +451,13 @@ var requirejs, require, define;
             parts = splitPrefix(name);
             prefix = parts[0];
             name = parts[1];
-            if (prefix) {
-                plugin = callDep(prefix);
-            }
         }
 
         //Using ridiculous property names for space reasons
         return {
             f: prefix ? prefix + '!' + name : name, //fullName
             n: name,
-            pr: prefix,
-            p: plugin
+            pr: prefix
         };
     };
 
@@ -511,13 +520,7 @@ var requirejs, require, define;
                     cjsModule = handlers.module(name);
                     args[i] = prim().resolve(cjsModule).promise;
                 } else {
-                    args[i] = callDep(depName);
-
-                    //TODO figure out plugin dependencies.
-                    //if (map.p) {
-                    //    map.p.load(map.n, makeRequire(relName, true), makeLoad(depName), {});
-                    //    args[i] = defined[depName];
-                    //}
+                    args[i] = callDep(map, relName);
                 }
             });
 
