@@ -220,12 +220,12 @@ var requirejs, require, define;
      * to.
      * @returns {String} normalized name
      */
-    function normalize(name, baseName) {
+    function normalize(name, baseName, skipMap) {
         var nameParts, nameSegment, mapValue, foundMap,
             foundI, foundStarMap, starI, i, j, part,
             baseParts = baseName && baseName.split("/"),
             map = config.map,
-            starMap = (map && map['*']) || {};
+            starMap = (!skipMap && map && map['*']) || {};
 
         //Adjust any relative paths.
         if (name && name.charAt(0) === ".") {
@@ -348,7 +348,7 @@ var requirejs, require, define;
     function getDefer(name) {
         var d;
         if (name) {
-            d = deferreds[name];
+            d = hasProp(deferreds, name) && deferreds[name];
             if (!d) {
                 d = deferreds[name] = prim();
             }
@@ -395,7 +395,7 @@ var requirejs, require, define;
             main.apply(undef, args);
         } else if (!hasProp(deferreds, name)) {
             if (map.pr) {
-                return callDep(makeMap(map.pr)).then(function (plugin) {
+                return callDep(makeMap(map.pr, null, true)).then(function (plugin) {
                     //Redo map now that plugin is known to be loaded
                     var newMap = makeMap(name, relName);
                     plugin.load(newMap.n, makeRequire(relName, true), makeLoad(newMap.f), {});
@@ -427,7 +427,7 @@ var requirejs, require, define;
      * for normalization if necessary. Grabs a ref to plugin
      * too, as an optimization.
      */
-    makeMap = function (name, relName) {
+    makeMap = function (name, relName, skipMap) {
         var plugin,
             parts = splitPrefix(name),
             prefix = parts[0];
@@ -435,7 +435,7 @@ var requirejs, require, define;
         name = parts[1];
 
         if (prefix) {
-            prefix = normalize(prefix, relName);
+            prefix = normalize(prefix, relName, skipMap);
             plugin = hasProp(defined, prefix) && defined[prefix];
         }
 
@@ -444,10 +444,10 @@ var requirejs, require, define;
             if (plugin && plugin.normalize) {
                 name = plugin.normalize(name, makeNormalize(relName));
             } else {
-                name = normalize(name, relName);
+                name = normalize(name, relName, skipMap);
             }
         } else {
-            name = normalize(name, relName);
+            name = normalize(name, relName, skipMap);
             parts = splitPrefix(name);
             prefix = parts[0];
             name = parts[1];

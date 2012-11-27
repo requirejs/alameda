@@ -12,13 +12,10 @@ doh.registerUrl("pluginsMapSameName", "../plugins/pluginMapSameName/pluginMapSam
 doh.registerUrl("text", "../plugins/text.html");
 doh.registerUrl("coffee", "../plugins/coffee.html");
 doh.registerUrl("shim", "../shim/shim.html");
-doh.registerUrl("unorderedSeparate", "../unordered/separate.html");
-doh.registerUrl("emptyFactory", "../emptyFactory/emptyFactory.html");
-doh.registerUrl("missing", "../missing/missing.html");
 doh.registerUrl("insertRequire", "../insertRequire/insertRequire.html", 4000);
-doh.registerUrl("circular", "../circular/circular.html");
-doh.registerUrl("circular414", "../circular/414/414.html");
-doh.registerUrl("circularTranspiler", "../circular/transpiler/transpiler.html");
+doh.registerUrl("circular", "../circular/circular.html", 4000);
+doh.registerUrl("circular414", "../circular/414/414.html", 4000);
+doh.registerUrl("circularTranspiler", "../circular/transpiler/transpiler.html", 4000);
 doh.registerUrl("relativePaths", "../relativePaths/relativePaths.html");
 doh.registerUrl("errback", "../errback/errback.html");
 doh.registerUrl("specialDeps", "../specialDeps/specialDeps.html");
