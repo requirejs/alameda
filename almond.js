@@ -178,14 +178,18 @@ var requirejs, require, define;
                 d = prim();
             ary.forEach(function (p, i) {
                 p.then(function (val) {
+                    if (hasErr) {
+                        return;
+                    }
                     count += 1;
                     result[i] = val;
                     if (count === ary.length) {
                         d.resolve(result);
                     }
                 }, function (err) {
-                    if (hasErr) {
+                    if (!hasErr) {
                         d.reject(err);
+                        hasErr = true;
                     }
                 });
             });
@@ -376,7 +380,7 @@ var requirejs, require, define;
             load(name);
         }
 
-        return getDefer(name);
+        return getDefer(name).promise;
     }
 
     //Turns a plugin!resource to [plugin, resource]
@@ -478,32 +482,33 @@ var requirejs, require, define;
             //values to the callback.
             //Default to [require, exports, module] if no deps
             deps = !deps.length && callback.length ? ['require', 'exports', 'module'] : deps;
-            for (i = 0; i < deps.length; i += 1) {
-                map = makeMap(deps[i], relName);
+            deps.forEach(function (depName, i) {
+                map = makeMap(depName, relName);
                 depName = map.f;
 
                 //Fast path CommonJS standard dependencies.
                 if (depName === "require") {
-                    args[i] = handlers.require(name);
+                    args[i] = prim().start(function () { return handlers.require(name); });
                 } else if (depName === "exports") {
                     //CommonJS module spec 1.1
-                    args[i] = handlers.exports(name);
+                    args[i] = prim().start(function () { return handlers.exports(name); });
                     usingExports = true;
                 } else if (depName === "module") {
                     //CommonJS module spec 1.1
-                    cjsModule = args[i] = handlers.module(name);
-                } else if (hasProp(defined, depName) ||
-                           hasProp(waiting, depName) ||
-                           hasProp(defining, depName)) {
+                    cjsModule = handlers.module(name);
+                    args[i] = prim().start(function () { return cjsModule; });
+                } else {
                     args[i] = callDep(depName);
-                } else if (map.p) {
-                    map.p.load(map.n, makeRequire(relName, true), makeLoad(depName), {});
-                    args[i] = defined[depName];
+
+                    //TODO figure out plugin dependencies.
+                    //if (map.p) {
+                    //    map.p.load(map.n, makeRequire(relName, true), makeLoad(depName), {});
+                    //    args[i] = defined[depName];
+                    //}
                 }
-            }
+            });
 
             prim.all(args).then(function (values) {
-
                 ret = callback.apply(defined[name], args);
 
                 if (name) {
@@ -587,7 +592,7 @@ var requirejs, require, define;
     };
 
     define = function (name, deps, callback) {
-        if (typeof name === 'string') {
+        if (typeof name !== 'string') {
             waitingDefine = arguments;
             return;
         }
