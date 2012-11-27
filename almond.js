@@ -5,7 +5,7 @@
  */
 //Going sloppy to avoid 'use strict' string cost, but strict practices should
 //be followed.
-/*jslint sloppy: true */
+/*jslint sloppy: true, nomen: true */
 /*global setTimeout, process, document */
 
 var requirejs, require, define;
@@ -15,6 +15,7 @@ var requirejs, require, define;
         defined = {},
         waiting = {},
         config = {},
+        requireDeferreds = [],
         deferreds = {},
         defining = {},
         hasOwn = Object.prototype.hasOwnProperty,
@@ -344,15 +345,23 @@ var requirejs, require, define;
     }
 
     function getDefer(name) {
-        var d = deferreds[name];
-        if (!d) {
-            d = deferreds[name] = prim();
+        var d;
+        if (name) {
+            d = deferreds[name];
+            if (!d) {
+                d = deferreds[name] = prim();
+            }
+        } else {
+            d = prim();
+            requireDeferreds.push(d);
         }
         return d;
     }
 
     function resolve(name, d, value) {
-        defined[name] = value;
+        if (name) {
+            defined[name] = value;
+        }
         d.resolve(value);
     }
 
@@ -492,15 +501,15 @@ var requirejs, require, define;
 
                 //Fast path CommonJS standard dependencies.
                 if (depName === "require") {
-                    args[i] = prim().start(function () { return handlers.require(name); });
+                    args[i] = prim().resolve(handlers.require(name)).promise;
                 } else if (depName === "exports") {
                     //CommonJS module spec 1.1
-                    args[i] = prim().start(function () { return handlers.exports(name); });
+                    args[i] = prim().resolve(handlers.exports(name)).promise;
                     usingExports = true;
                 } else if (depName === "module") {
                     //CommonJS module spec 1.1
                     cjsModule = handlers.module(name);
-                    args[i] = prim().start(function () { return cjsModule; });
+                    args[i] = prim().resolve(cjsModule).promise;
                 } else {
                     args[i] = callDep(depName);
 
@@ -513,7 +522,7 @@ var requirejs, require, define;
             });
 
             prim.all(args).then(function (values) {
-                ret = callback.apply(defined[name], args);
+                ret = callback.apply(defined[name], values);
 
                 if (name) {
                     //If setting exports via "module" is in play,
@@ -525,6 +534,8 @@ var requirejs, require, define;
                     } else if (ret !== undef || !usingExports) {
                         //Use the return value from the function.
                         resolve(name, d, ret);
+                    } else {
+                        resolve(name, d, defined[name]);
                     }
                 }
             });
@@ -546,7 +557,7 @@ var requirejs, require, define;
             //is just the relName.
             //Normalize module name, if it contains . or ..
             var name = makeMap(deps, callback).f;
-            if (hasProp(defined, name)) {
+            if (!hasProp(defined, name)) {
                 throw new Error('Not loaded: ' + name);
             }
             return defined[name];
@@ -593,6 +604,14 @@ var requirejs, require, define;
     req.config = function (cfg) {
         config = cfg;
         return req;
+    };
+
+    req._d = {
+        defined: defined,
+        waiting: waiting,
+        config: config,
+        deferreds: deferreds,
+        defining: defining
     };
 
     define = function (name, deps, callback) {
