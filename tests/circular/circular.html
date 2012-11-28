@@ -24,12 +24,12 @@
             }
         });
 
-        define('c', ['require', 'exports'], function (require, exports) {
+        define('c', ['require', 'exports', 'd'], function (require, exports) {
             exports.name = 'c',
             exports.d = require('d');
         });
 
-        define('d', ['require', 'exports'], function (require, exports) {
+        define('d', ['require', 'exports', 'c'], function (require, exports) {
             exports.name = 'd',
             exports.c = require('c');
         });

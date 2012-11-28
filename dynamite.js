@@ -11,7 +11,7 @@
 var requirejs, require, define;
 (function (undef) {
 
-    var prim, main, req, makeMap, handlers, waitingDefine,
+    var prim, main, req, makeMap, handlers, waitingDefine, loadTimeId,
         defined = {},
         waiting = {},
         config = {},
@@ -19,10 +19,28 @@ var requirejs, require, define;
         deferreds = {},
         defining = {},
         hasOwn = Object.prototype.hasOwnProperty,
-        aps = [].slice;
+        aps = [].slice,
+        loadCount = 0,
+        startTime = 0;
 
     function hasProp(obj, prop) {
         return hasOwn.call(obj, prop);
+    }
+
+    /**
+     * Cycles over properties in an object and calls a function for each
+     * property value. If the function returns a truthy value, then the
+     * iteration is stopped.
+     */
+    function eachProp(obj, func) {
+        var prop;
+        for (prop in obj) {
+            if (hasProp(obj, prop)) {
+                if (func(obj[prop], prop)) {
+                    break;
+                }
+            }
+        }
     }
 
     //START prim
@@ -32,7 +50,7 @@ var requirejs, require, define;
      * - no hideResolutionConflict, want early errors, trusted code.
      * - each() changed to Array.forEach
      * - removed UMD registration
-     * - added prim.all
+     * - added deferred.finished()/rejected()
      */
 
     /**
@@ -84,6 +102,14 @@ var requirejs, require, define;
                     } else {
                         fail.push(no);
                     }
+                },
+
+                finished: function () {
+                    return hasProp(p, 'e') || hasProp(p, 'v');
+                },
+
+                rejected: function () {
+                    return hasProp(p, 'e');
                 },
 
                 resolve: function (v) {
@@ -170,36 +196,6 @@ var requirejs, require, define;
                 });
             });
             return result;
-        };
-
-        prim.all = function (ary) {
-            var hasErr,
-                count = 0,
-                result = [],
-                d = prim();
-
-            if (!ary || !ary.length) {
-                d.resolve(result);
-            } else {
-                ary.forEach(function (p, i) {
-                    p.then(function (val) {
-                        if (!hasErr) {
-                            count += 1;
-                            result[i] = val;
-                            if (count === ary.length) {
-                                d.resolve(result);
-                            }
-                        }
-                    }, function (err) {
-                        if (!hasErr) {
-                            d.reject(err);
-                            hasErr = true;
-                        }
-                    });
-                });
-            }
-
-            return d.promise;
         };
 
         prim.nextTick = typeof process !== 'undefined' && process.nextTick ?
@@ -345,20 +341,68 @@ var requirejs, require, define;
         };
     }
 
+    function defineModule(d) {
+        var name = d.map && d.map.f,
+            ret = d.factory.apply(defined[name], d.values);
+
+        if (name) {
+            //If setting exports via "module" is in play,
+            //favor that over return value and exports.
+            //After that, favor a non-undefined return
+            //value over exports use.
+            if (d.cjsModule && d.cjsModule.exports !== undef &&
+                    d.cjsModule.exports !== defined[name]) {
+                resolve(name, d, d.cjsModule.exports);
+            } else if (ret !== undef || !d.usingExports) {
+                //Use the return value from the function.
+                resolve(name, d, ret);
+            } else {
+                resolve(name, d, defined[name]);
+            }
+        } else {
+            d.resolve();
+        }
+    }
+
+    //This method is attached to every module deferred,
+    //so the "this" in here is the module deferred object.
+    function depFinished(val, i) {
+        if (!this.rejected() && !this.depDefined[i]) {
+            this.depDefined[i] = true;
+            this.depCount += 1;
+            this.values[i] = val;
+            if (this.depCount === this.depMax) {
+                defineModule(this);
+            }
+        }
+    }
+
+    function makeDefer(name) {
+        var d = prim();
+        if (name) {
+            d.map = makeMap(name);
+        }
+        d.depCount = 0;
+        d.depMax = 0;
+        d.values = [];
+        d.depDefined = [];
+        d.depFinished = depFinished;
+        return d;
+    }
+
     function getDefer(name) {
         var d;
         if (name) {
             d = hasProp(deferreds, name) && deferreds[name];
             if (!d) {
-                d = deferreds[name] = prim();
+                d = deferreds[name] = makeDefer(name);
             }
         } else {
-            d = prim();
+            d = makeDefer();
             requireDeferreds.push(d);
         }
         return d;
     }
-
 
     function makeLoad(depName) {
         return function (value) {
@@ -371,13 +415,18 @@ var requirejs, require, define;
             script = document.createElement('script');
         script.src = url;
 
+        loadCount += 1;
+
         script.addEventListener('load', function (evt) {
+            loadCount -= 1;
             if (waitingDefine) {
                 waitingDefine.unshift(name);
                 define.apply(null, waitingDefine);
             }
         }, false);
         script.addEventListener('error', function (evt) {
+//TODO: can error fire as well as load? if so loadCount will be a mess.
+            loadCount -= 1;
             getDefer(name).reject(evt);
         }, false);
 
@@ -489,63 +538,147 @@ var requirejs, require, define;
         }
     };
 
-    main = function (name, deps, callback, relName) {
-        var cjsModule, depName, ret, map, i,
-            d = getDefer(name),
-            args = [],
-            usingExports;
+    function breakCycle(d, traced, processed) {
+        var id = d.map && d.map.f;
+
+        traced[id] = true;
+        if (!d.finished() && d.deps) {
+            d.deps.forEach(function (depMap, i) {
+                var depIndex,
+                    depId = depMap.f,
+                    dep = !hasProp(handlers, depId) && getDefer(depId);
+
+                //Only force things that have not completed
+                //being defined, so still in the registry,
+                //and only if it has not been matched up
+                //in the module already.
+                if (dep && !dep.finished() && !processed[depId]) {
+                    if (hasProp(traced, depId)) {
+                        d.deps.some(function (depMap, i) {
+                            if (depMap.f === depId) {
+                                depIndex = i;
+                                return true;
+                            }
+                        });
+                        d.depFinished(defined[depId], depIndex);
+                    } else {
+                        breakCycle(dep, traced, processed);
+                    }
+                }
+            });
+        }
+        processed[id] = true;
+    }
+
+    function check() {
+        loadTimeId = 0;
+
+        var reqDefs,
+            noLoads = [],
+            waitInterval = (config.waitSeconds || 7) * 1000,
+            //It is possible to disable the wait interval by using waitSeconds of 0.
+            expired = waitInterval && (startTime + waitInterval) < new Date().getTime();
+
+        if (loadCount === 0) {
+            reqDefs = requireDeferreds.filter(function (d) {
+                //Only want deferreds that have not finished.
+                return !d.finished();
+            });
+
+            if (reqDefs.length) {
+                //Something is not resolved. Dive into it.
+                eachProp(deferreds, function (d, id) {
+                    if (!d.finished()) {
+                        noLoads.push(d);
+                    }
+                });
+
+                if (noLoads.length) {
+                    reqDefs.forEach(function (d) {
+                        breakCycle(d, {}, {});
+                    });
+                }
+
+                return;
+            }
+        }
+
+        //If still waiting on loads, and the waiting load is something
+        //other than a plugin resource, or there are still outstanding
+        //scripts, then just try back later.
+        if (expired && noLoads.length) {
+            //If wait time expired, throw error of unloaded modules.
+            throw new Error('timeout', 'Load timeout for modules: ' + noLoads.map(function (d) {
+                return d.map.f;
+            }));
+        } else if (reqDefs.length) {
+            //Something is still waiting to load. Wait for it, but only
+            //if a timeout is not already in effect.
+            if (!loadTimeId) {
+                loadTimeId = prim.nextTick(check);
+            }
+        }
+    }
+
+    main = function (name, deps, factory, relName) {
+        var depName, map,
+            d = getDefer(name);
 
         //Use name if no relName
         relName = relName || name;
 
-        //Call the callback to define the module, if necessary.
-        if (typeof callback === 'function') {
+        //Call the factory to define the module, if necessary.
+        if (typeof factory === 'function') {
             //Pull out the defined dependencies and pass the ordered
-            //values to the callback.
+            //values to the factory.
             //Default to [require, exports, module] if no deps
-            deps = !deps.length && callback.length ? ['require', 'exports', 'module'] : deps;
+            deps = !deps.length && factory.length ? ['require', 'exports', 'module'] : deps;
+
+            //Save info for use later.
+            d.factory = factory;
+            d.deps = deps;
+
             deps.forEach(function (depName, i) {
-                map = makeMap(depName, relName);
-                depName = map.f;
+                var depMap;
+                deps[i] = depMap = makeMap(depName, relName);
+                depName = depMap.f;
 
                 //Fast path CommonJS standard dependencies.
                 if (depName === "require") {
-                    args[i] = prim().resolve(handlers.require(name)).promise;
+                    d.values[i] = handlers.require(name);
                 } else if (depName === "exports") {
                     //CommonJS module spec 1.1
-                    args[i] = prim().resolve(handlers.exports(name)).promise;
-                    usingExports = true;
+                    d.values[i] = handlers.exports(name);
+                    d.usingExports = true;
                 } else if (depName === "module") {
                     //CommonJS module spec 1.1
-                    cjsModule = handlers.module(name);
-                    args[i] = prim().resolve(cjsModule).promise;
+                    d.values[i] = d.cjsModule = handlers.module(name);
                 } else {
-                    args[i] = callDep(map, relName);
+                    d.depMax += 1;
+
+                    callDep(depMap, relName).then(function (val) {
+                        d.depFinished(val, i);
+                    }, function (err) {
+                        if (!d.rejected()) {
+                            d.reject(err);
+                        }
+                    });
                 }
             });
 
-            prim.all(args).then(function (values) {
-                ret = callback.apply(defined[name], values);
-
-                if (name) {
-                    //If setting exports via "module" is in play,
-                    //favor that over return value and exports. After that,
-                    //favor a non-undefined return value over exports use.
-                    if (cjsModule && cjsModule.exports !== undef &&
-                            cjsModule.exports !== defined[name]) {
-                        resolve(name, d, cjsModule.exports);
-                    } else if (ret !== undef || !usingExports) {
-                        //Use the return value from the function.
-                        resolve(name, d, ret);
-                    } else {
-                        resolve(name, d, defined[name]);
-                    }
-                }
-            });
+            //Some modules just depend on the require, exports, modules, so
+            //trigger their definition here if so.
+            if (d.depCount === d.depMax) {
+                defineModule(d);
+            }
         } else if (name) {
             //May just be an object definition for the module. Only
             //worry about defining if have a module name.
-            resolve(name, d, callback);
+            resolve(name, d, factory);
+        }
+
+        if (!name) {
+            check();
         }
     };
 
