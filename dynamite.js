@@ -6,7 +6,7 @@
 //Going sloppy to avoid 'use strict' string cost, but strict practices should
 //be followed.
 /*jslint sloppy: true, nomen: true, regexp: true */
-/*global setTimeout, process, document */
+/*global setTimeout, process, document, navigator */
 
 var requirejs, require, define;
 (function (undef) {
@@ -30,6 +30,10 @@ var requirejs, require, define;
 
     function hasProp(obj, prop) {
         return hasOwn.call(obj, prop);
+    }
+
+    function getOwn(obj, prop) {
+        return obj && hasProp(obj, prop) && obj[prop];
     }
 
     /**
@@ -415,8 +419,9 @@ var requirejs, require, define;
         };
     }
 
-    function load(name) {
-        var url = urlRegExp.test(name) ? name : (config.baseUrl || '') + name + '.js',
+    function load(map) {
+        var name = map.f,
+            url = map.url,
             script = document.createElement('script');
         script.setAttribute('data-id', name);
         script.type = config.scriptType || 'text/javascript';
@@ -465,7 +470,7 @@ var requirejs, require, define;
                     return getDefer(newMap.f).promise;
                 });
             } else {
-                load(name);
+                load(map);
             }
         }
 
@@ -491,7 +496,7 @@ var requirejs, require, define;
      * too, as an optimization.
      */
     makeMap = function (name, relName, skipMap) {
-        var plugin,
+        var plugin, url,
             parts = splitPrefix(name),
             prefix = parts[0];
 
@@ -514,13 +519,16 @@ var requirejs, require, define;
             parts = splitPrefix(name);
             prefix = parts[0];
             name = parts[1];
+
+            url = req.nameToUrl(name);
         }
 
         //Using ridiculous property names for space reasons
         return {
             f: prefix ? prefix + '!' + name : name, //fullName
             n: name,
-            pr: prefix
+            pr: prefix,
+            url: url
         };
     };
 
@@ -643,10 +651,27 @@ var requirejs, require, define;
 
         //Call the factory to define the module, if necessary.
         if (typeof factory === 'function') {
-            //Pull out the defined dependencies and pass the ordered
-            //values to the factory.
-            //Default to [require, exports, module] if no deps
-            deps = !deps.length && factory.length ? ['require', 'exports', 'module'] : deps;
+
+            if (!deps.length && factory.length) {
+                //Remove comments from the callback string,
+                //look for require calls, and pull them into the dependencies,
+                //but only if there are function args.
+                factory
+                    .toString()
+                    .replace(commentRegExp, '')
+                    .replace(cjsRequireRegExp, function (match, dep) {
+                        deps.push(dep);
+                    });
+
+                //May be a CommonJS thing even without require calls, but still
+                //could use exports, and module. Avoid doing exports and module
+                //work though if it just needs require.
+                //REQUIRES the function to expect the CommonJS variables in the
+                //order listed below.
+                deps = (factory.length === 1 ?
+                        ['require'] :
+                        ['require', 'exports', 'module']).concat(deps);
+            }
 
             //Save info for use later.
             d.factory = factory;
@@ -713,7 +738,7 @@ var requirejs, require, define;
             return defined[name];
         } else if (!deps.splice) {
             //deps is a config object, not an array.
-            config = deps;
+            req.config(deps);
 
             if (callback.splice) {
                 //callback is an array, which means it is a dependency list.
@@ -756,6 +781,67 @@ var requirejs, require, define;
         config = cfg;
         return req;
     };
+
+    req.nameToUrl = function (moduleName, ext) {
+        var paths, pkgs, pkg, pkgPath, syms, i, parentModule, url,
+            parentPath;
+
+        //If a colon is in the URL, it indicates a protocol is used and it is just
+        //an URL to a file, or if it starts with a slash, contains a query arg (i.e. ?)
+        //or ends with .js, then assume the user meant to use an url and not a module id.
+        //The slash is important for protocol-less URLs as well as full paths.
+        if (urlRegExp.test(moduleName)) {
+            //Just a plain path, not module name lookup, so just return it.
+            //Add extension if it is included. This is a bit wonky, only non-.js things pass
+            //an extension, this method probably needs to be reworked.
+            url = moduleName + (ext || '');
+        } else {
+            //A module that needs to be converted to a path.
+            paths = config.paths;
+            pkgs = config.pkgs;
+
+            syms = moduleName.split('/');
+            //For each module name segment, see if there is a path
+            //registered for it. Start with most specific name
+            //and work up from it.
+            for (i = syms.length; i > 0; i -= 1) {
+                parentModule = syms.slice(0, i).join('/');
+                pkg = getOwn(pkgs, parentModule);
+                parentPath = getOwn(paths, parentModule);
+                if (parentPath) {
+                    //If an array, it means there are a few choices,
+                    //Choose the one that is desired
+                    if (Array.isArray(parentPath)) {
+                        parentPath = parentPath[0];
+                    }
+                    syms.splice(0, i, parentPath);
+                    break;
+                } else if (pkg) {
+                    //If module name is just the package name, then looking
+                    //for the main module.
+                    if (moduleName === pkg.name) {
+                        pkgPath = pkg.location + '/' + pkg.main;
+                    } else {
+                        pkgPath = pkg.location;
+                    }
+                    syms.splice(0, i, pkgPath);
+                    break;
+                }
+            }
+
+            //Join the path parts together, then figure out if baseUrl is needed.
+            url = syms.join('/');
+            url += (ext || (/\?/.test(url) ? '' : '.js'));
+            url = (url.charAt(0) === '/' || url.match(/^[\w\+\.\-]+:/) ? '' : config.baseUrl) + url;
+        }
+
+        return config.urlArgs ? url +
+                                ((url.indexOf('?') === -1 ? '?' : '&') +
+                                 config.urlArgs) : url;
+    };
+
+    req.isBrowser = typeof document !== 'undefined' &&
+        typeof navigator !== 'undefined';
 
     req._d = {
         defined: defined,
