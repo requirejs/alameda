@@ -3,6 +3,9 @@
 TODO: almond + dynamic loading, and only for modern browsers. Specifically,
 latest WebKit, Firefox, Opera and IE10+.
 
+
+* Error reporting, but no error recovery
+
 ## How to get help
 
 * Contact the [requirejs list](https://groups.google.com/group/requirejs).

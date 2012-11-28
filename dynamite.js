@@ -12,7 +12,7 @@ var requirejs, require, define;
 (function (undef) {
 
     var prim, main, req, makeMap, handlers, waitingDefine, loadTimeId,
-        dataMain, src, mainScript, subPath,
+        dataMain, src, mainScript, subPath, bootstrapConfig,
         defined = {},
         waiting = {},
         config = {},
@@ -23,10 +23,17 @@ var requirejs, require, define;
         aps = [].slice,
         loadCount = 0,
         startTime = 0,
+        errCount = 0,
+        trackedErrors = {},
         urlRegExp = /(^\/)|\:|\?(\.js$)/,
         commentRegExp = /(\/\*([\s\S]*?)\*\/|([^:]|^)\/\/(.*)$)/mg,
         cjsRequireRegExp = /[^.]\s*require\s*\(\s*["']([^'"\s]+)["']\s*\)/g,
         jsSuffixRegExp = /\.js$/;
+
+    if (typeof requirejs === 'function') {
+        return;
+    }
+    bootstrapConfig = requirejs || require;
 
     function hasProp(obj, prop) {
         return hasOwn.call(obj, prop);
@@ -361,7 +368,7 @@ var requirejs, require, define;
                 //deps arg is the module name, and second arg (if passed)
                 //is just the relName.
                 //Normalize module name, if it contains . or ..
-                var name = makeMap(deps, callback).f;
+                var name = makeMap(deps, relName).f;
                 if (!hasProp(defined, name)) {
                     throw new Error('Not loaded: ' + name);
                 }
@@ -759,8 +766,6 @@ var requirejs, require, define;
                         breakCycle(d, {}, {});
                     });
                 }
-
-                return;
             }
         }
 
@@ -784,11 +789,34 @@ var requirejs, require, define;
         }
     }
 
+    //Used to break out of the promise try/catch chains.
+    function delayedError(e) {
+        prim.nextTick(function () {
+            if (!e.dynaId || !trackedErrors[e.dynaId]) {
+                trackedErrors[e.dynaId] = true;
+                req.onError(e);
+            }
+        });
+    }
+
+    function makeErrback(d, name) {
+        return function (err) {
+            if (!d.rejected()) {
+                if (!err.dynaId) {
+                    err = new Error('"' + (name || 'require callback') +
+                        '": ' + err);
+                    err.dynaId = 'id' + (errCount += 1);
+                }
+                d.reject(err);
+            }
+        };
+    }
+
     main = function (name, deps, factory, errback, relName) {
         var depName, map,
             d = getDefer(name);
 
-        d.promise.fail(errback || req.onError);
+        d.promise.fail(errback || delayedError);
 
         //Use name if no relName
         relName = relName || name;
@@ -839,13 +867,11 @@ var requirejs, require, define;
                 } else {
                     d.depMax += 1;
 
+                    //Do the fail at the end to catch errors
+                    //in the then callback execution.
                     callDep(depMap, relName).then(function (val) {
                         d.depFinished(val, i);
-                    }, function (err) {
-                        if (!d.rejected()) {
-                            d.reject(err);
-                        }
-                    });
+                    }, makeErrback(d, depName)).fail(makeErrback(d, name));
                 }
             });
 
@@ -865,7 +891,11 @@ var requirejs, require, define;
         }
     };
 
-    requirejs = require = req = makeRequire();
+    requirejs = req = makeRequire();
+
+    if (typeof require !== 'function') {
+        require = req;
+    }
 
     /**
      * Just drops the config on the floor, but returns req in case
@@ -879,10 +909,14 @@ var requirejs, require, define;
             }
         }
 
-        mixin(config, cfg);
+        mixin(config, cfg, true);
 
         if (!config.baseUrl) {
             config.baseUrl = './';
+        }
+
+        if (cfg.deps) {
+            req(cfg.deps, cfg.callback);
         }
 
         return req;
@@ -927,6 +961,10 @@ var requirejs, require, define;
     define.amd = {
         jQuery: true
     };
+
+    if (bootstrapConfig) {
+        req.config(bootstrapConfig);
+    }
 
     //data-main support.
     dataMain = document.querySelectorAll('script[data-main]')[0];
