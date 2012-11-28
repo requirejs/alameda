@@ -5,13 +5,14 @@
  */
 //Going sloppy to avoid 'use strict' string cost, but strict practices should
 //be followed.
-/*jslint sloppy: true, nomen: true */
+/*jslint sloppy: true, nomen: true, regexp: true */
 /*global setTimeout, process, document */
 
 var requirejs, require, define;
 (function (undef) {
 
     var prim, main, req, makeMap, handlers, waitingDefine, loadTimeId,
+        dataMain, src, mainScript, subPath,
         defined = {},
         waiting = {},
         config = {},
@@ -21,7 +22,11 @@ var requirejs, require, define;
         hasOwn = Object.prototype.hasOwnProperty,
         aps = [].slice,
         loadCount = 0,
-        startTime = 0;
+        startTime = 0,
+        urlRegExp = /(^\/)|\:|\?(\.js$)/,
+        commentRegExp = /(\/\*([\s\S]*?)\*\/|([^:]|^)\/\/(.*)$)/mg,
+        cjsRequireRegExp = /[^.]\s*require\s*\(\s*["']([^'"\s]+)["']\s*\)/g,
+        jsSuffixRegExp = /\.js$/;
 
     function hasProp(obj, prop) {
         return hasOwn.call(obj, prop);
@@ -411,9 +416,12 @@ var requirejs, require, define;
     }
 
     function load(name) {
-        var url = config.baseUrl + name + '.js',
+        var url = urlRegExp.test(name) ? name : (config.baseUrl || '') + name + '.js',
             script = document.createElement('script');
-        script.src = url;
+        script.setAttribute('data-id', name);
+        script.type = config.scriptType || 'text/javascript';
+        script.charset = 'utf-8';
+        script.async = true;
 
         loadCount += 1;
 
@@ -422,13 +430,19 @@ var requirejs, require, define;
             if (waitingDefine) {
                 waitingDefine.unshift(name);
                 define.apply(null, waitingDefine);
+            } else {
+                define(name);
             }
         }, false);
         script.addEventListener('error', function (evt) {
-//TODO: can error fire as well as load? if so loadCount will be a mess.
+            //INVESTIGATE: can error fire as well as load?
+            //Maybe load happens, but a syntax error?
+            //If so loadCount will be a mess.
             loadCount -= 1;
             getDefer(name).reject(evt);
         }, false);
+
+        script.src = url;
 
         document.head.appendChild(script);
     }
@@ -573,7 +587,7 @@ var requirejs, require, define;
     function check() {
         loadTimeId = 0;
 
-        var reqDefs,
+        var reqDefs = [],
             noLoads = [],
             waitInterval = (config.waitSeconds || 7) * 1000,
             //It is possible to disable the wait interval by using waitSeconds of 0.
@@ -700,6 +714,7 @@ var requirejs, require, define;
         } else if (!deps.splice) {
             //deps is a config object, not an array.
             config = deps;
+
             if (callback.splice) {
                 //callback is an array, which means it is a dependency list.
                 //Adjust args if there are dependencies
@@ -752,12 +767,12 @@ var requirejs, require, define;
 
     define = function (name, deps, callback) {
         if (typeof name !== 'string') {
-            waitingDefine = arguments;
+            waitingDefine = [].slice.call(arguments, 0);
             return;
         }
 
         //This module may not have dependencies
-        if (!deps.splice) {
+        if (deps && !deps.splice) {
             //deps is not an array, so probably means
             //an object literal or factory function for
             //the value. Adjust args.
@@ -766,11 +781,37 @@ var requirejs, require, define;
         }
 
         if (!hasProp(defined, name)) {
-            waiting[name] = [name, deps, callback];
+            if (hasProp(deferreds, name)) {
+                main(name, deps, callback);
+            } else {
+                waiting[name] = [name, deps, callback];
+            }
         }
     };
 
     define.amd = {
         jQuery: true
     };
+
+    //data-main support.
+    dataMain = document.querySelectorAll('script[data-main]')[0];
+    dataMain = dataMain && dataMain.getAttribute('data-main');
+    if (dataMain) {
+        //Set final baseUrl if there is not already an explicit one.
+        if (!config.baseUrl) {
+            //Pull off the directory of data-main for use as the
+            //baseUrl.
+            src = dataMain.split('/');
+            mainScript = src.pop();
+            subPath = src.length ? src.join('/')  + '/' : './';
+
+            config.baseUrl = subPath;
+            dataMain = mainScript;
+        }
+
+        //Strip off any trailing .js since dataMain is now
+        //like a module name.
+        dataMain = dataMain.replace(jsSuffixRegExp, '');
+        require([dataMain]);
+    }
 }());
