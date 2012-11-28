@@ -52,6 +52,28 @@ var requirejs, require, define;
         }
     }
 
+    /**
+     * Mixes in properties from source into target,
+     * but only if target does not already have a property of the same name.
+     */
+    function mixin(target, source, force, deepStringMixin) {
+        if (source) {
+            eachProp(source, function (value, prop) {
+                if (force || !hasProp(target, prop)) {
+                    if (deepStringMixin && typeof value !== 'string') {
+                        if (!target[prop]) {
+                            target[prop] = {};
+                        }
+                        mixin(target[prop], value, force, deepStringMixin);
+                    } else {
+                        target[prop] = value;
+                    }
+                }
+            });
+        }
+        return target;
+    }
+
     //START prim
     /**
      * Changes from baseline prim
@@ -328,8 +350,8 @@ var requirejs, require, define;
         return name;
     }
 
-    function makeRequire(relName, forceSync) {
-        function req(deps, callback, errback) {
+    function makeRequire(relName) {
+        function req(deps, callback, errback, alt) {
             if (typeof deps === "string") {
                 if (handlers[deps]) {
                     //callback in this case is really relName
@@ -352,8 +374,8 @@ var requirejs, require, define;
                     //callback is an array, which means it is a dependency list.
                     //Adjust args if there are dependencies
                     deps = callback;
-                    callback = relName;
-                    relName = null;
+                    callback = errback;
+                    errback = alt;
                 } else {
                     deps = undef;
                 }
@@ -363,13 +385,9 @@ var requirejs, require, define;
             callback = callback || function () {};
 
             //Simulate async callback;
-            if (forceSync) {
-                main(undef, deps, callback, relName);
-            } else {
-                setTimeout(function () {
-                    main(undef, deps, callback, relName);
-                }, 15);
-            }
+            prim.nextTick(function () {
+                main(undef, deps, callback, errback, relName);
+            });
 
             return req;
         }
@@ -558,11 +576,13 @@ var requirejs, require, define;
             }
         }, false);
         script.addEventListener('error', function (evt) {
+            var err = new Error('Load failed: ' + name);
+            err.requireModules = [name];
             //INVESTIGATE: can error fire as well as load?
             //Maybe load happens, but a syntax error?
             //If so loadCount will be a mess.
             loadCount -= 1;
-            getDefer(name).reject(evt);
+            getDefer(name).reject(err);
         }, false);
 
         script.src = url;
@@ -584,7 +604,7 @@ var requirejs, require, define;
                 return callDep(makeMap(map.pr, null, true)).then(function (plugin) {
                     //Redo map now that plugin is known to be loaded
                     var newMap = makeMap(name, relName);
-                    plugin.load(newMap.n, makeRequire(relName, true), makeLoad(newMap.f), {});
+                    plugin.load(newMap.n, makeRequire(relName), makeLoad(newMap.f), {});
                     return getDefer(newMap.f).promise;
                 });
             } else {
@@ -713,7 +733,8 @@ var requirejs, require, define;
     function check() {
         loadTimeId = 0;
 
-        var reqDefs = [],
+        var err,
+            reqDefs = [],
             noLoads = [],
             waitInterval = (config.waitSeconds || 7) * 1000,
             //It is possible to disable the wait interval by using waitSeconds of 0.
@@ -748,9 +769,12 @@ var requirejs, require, define;
         //scripts, then just try back later.
         if (expired && noLoads.length) {
             //If wait time expired, throw error of unloaded modules.
-            throw new Error('timeout', 'Load timeout for modules: ' + noLoads.map(function (d) {
+            noLoads = noLoads.filter(function (d) {
                 return d.map.f;
-            }));
+            });
+            err = new Error('timeout', 'Load timeout for modules: ' + noLoads);
+            err.requireModules = noLoads;
+            throw err;
         } else if (reqDefs.length) {
             //Something is still waiting to load. Wait for it, but only
             //if a timeout is not already in effect.
@@ -760,9 +784,11 @@ var requirejs, require, define;
         }
     }
 
-    main = function (name, deps, factory, relName) {
+    main = function (name, deps, factory, errback, relName) {
         var depName, map,
             d = getDefer(name);
+
+        d.promise.fail(errback || req.onError);
 
         //Use name if no relName
         relName = relName || name;
@@ -846,8 +872,24 @@ var requirejs, require, define;
      * the config return value is used.
      */
     req.config = function (cfg) {
-        config = cfg;
+        //Make sure the baseUrl ends in a slash.
+        if (cfg.baseUrl) {
+            if (cfg.baseUrl.charAt(cfg.baseUrl.length - 1) !== '/') {
+                cfg.baseUrl += '/';
+            }
+        }
+
+        mixin(config, cfg);
+
+        if (!config.baseUrl) {
+            config.baseUrl = './';
+        }
+
         return req;
+    };
+
+    req.onError = function (err) {
+        throw err;
     };
 
     req._d = {
