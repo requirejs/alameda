@@ -329,12 +329,130 @@ var requirejs, require, define;
     }
 
     function makeRequire(relName, forceSync) {
-        return function () {
-            //A version of a require function that passes a moduleName
-            //value for items that may need to
-            //look up paths relative to the moduleName
-            return req.apply(undef, aps.call(arguments, 0).concat([relName, forceSync]));
+        function req(deps, callback, errback) {
+            if (typeof deps === "string") {
+                if (handlers[deps]) {
+                    //callback in this case is really relName
+                    return handlers[deps](callback);
+                }
+                //Just return the module wanted. In this scenario, the
+                //deps arg is the module name, and second arg (if passed)
+                //is just the relName.
+                //Normalize module name, if it contains . or ..
+                var name = makeMap(deps, callback).f;
+                if (!hasProp(defined, name)) {
+                    throw new Error('Not loaded: ' + name);
+                }
+                return defined[name];
+            } else if (!deps.splice) {
+                //deps is a config object, not an array.
+                req.config(deps);
+
+                if (callback.splice) {
+                    //callback is an array, which means it is a dependency list.
+                    //Adjust args if there are dependencies
+                    deps = callback;
+                    callback = relName;
+                    relName = null;
+                } else {
+                    deps = undef;
+                }
+            }
+
+            //Support require(['a'])
+            callback = callback || function () {};
+
+            //Simulate async callback;
+            if (forceSync) {
+                main(undef, deps, callback, relName);
+            } else {
+                setTimeout(function () {
+                    main(undef, deps, callback, relName);
+                }, 15);
+            }
+
+            return req;
+        }
+
+        req.isBrowser = typeof document !== 'undefined' &&
+            typeof navigator !== 'undefined';
+
+        req.nameToUrl = function (moduleName, ext) {
+            var paths, pkgs, pkg, pkgPath, syms, i, parentModule, url,
+                parentPath;
+
+            //If a colon is in the URL, it indicates a protocol is used and it is just
+            //an URL to a file, or if it starts with a slash, contains a query arg (i.e. ?)
+            //or ends with .js, then assume the user meant to use an url and not a module id.
+            //The slash is important for protocol-less URLs as well as full paths.
+            if (urlRegExp.test(moduleName)) {
+                //Just a plain path, not module name lookup, so just return it.
+                //Add extension if it is included. This is a bit wonky, only non-.js things pass
+                //an extension, this method probably needs to be reworked.
+                url = moduleName + (ext || '');
+            } else {
+                //A module that needs to be converted to a path.
+                paths = config.paths;
+                pkgs = config.pkgs;
+
+                syms = moduleName.split('/');
+                //For each module name segment, see if there is a path
+                //registered for it. Start with most specific name
+                //and work up from it.
+                for (i = syms.length; i > 0; i -= 1) {
+                    parentModule = syms.slice(0, i).join('/');
+                    pkg = getOwn(pkgs, parentModule);
+                    parentPath = getOwn(paths, parentModule);
+                    if (parentPath) {
+                        //If an array, it means there are a few choices,
+                        //Choose the one that is desired
+                        if (Array.isArray(parentPath)) {
+                            parentPath = parentPath[0];
+                        }
+                        syms.splice(0, i, parentPath);
+                        break;
+                    } else if (pkg) {
+                        //If module name is just the package name, then looking
+                        //for the main module.
+                        if (moduleName === pkg.name) {
+                            pkgPath = pkg.location + '/' + pkg.main;
+                        } else {
+                            pkgPath = pkg.location;
+                        }
+                        syms.splice(0, i, pkgPath);
+                        break;
+                    }
+                }
+
+                //Join the path parts together, then figure out if baseUrl is needed.
+                url = syms.join('/');
+                url += (ext || (/\?/.test(url) ? '' : '.js'));
+                url = (url.charAt(0) === '/' || url.match(/^[\w\+\.\-]+:/) ? '' : config.baseUrl) + url;
+            }
+
+            return config.urlArgs ? url +
+                                    ((url.indexOf('?') === -1 ? '?' : '&') +
+                                     config.urlArgs) : url;
         };
+
+        /**
+         * Converts a module name + .extension into an URL path.
+         * *Requires* the use of a module name. It does not support using
+         * plain URLs like nameToUrl.
+         */
+        req.toUrl = function (moduleNamePlusExt) {
+            var index = moduleNamePlusExt.lastIndexOf('.'),
+                ext = null;
+
+            if (index !== -1) {
+                ext = moduleNamePlusExt.substring(index, moduleNamePlusExt.length);
+                moduleNamePlusExt = moduleNamePlusExt.substring(0, index);
+            }
+
+            return req.nameToUrl(normalize(moduleNamePlusExt, relName, true), ext);
+        };
+
+        return req;
     }
 
     function resolve(name, d, value) {
@@ -721,57 +839,7 @@ var requirejs, require, define;
         }
     };
 
-    requirejs = require = req = function (deps, callback, relName, forceSync, alt) {
-        if (typeof deps === "string") {
-            if (handlers[deps]) {
-                //callback in this case is really relName
-                return handlers[deps](callback);
-            }
-            //Just return the module wanted. In this scenario, the
-            //deps arg is the module name, and second arg (if passed)
-            //is just the relName.
-            //Normalize module name, if it contains . or ..
-            var name = makeMap(deps, callback).f;
-            if (!hasProp(defined, name)) {
-                throw new Error('Not loaded: ' + name);
-            }
-            return defined[name];
-        } else if (!deps.splice) {
-            //deps is a config object, not an array.
-            req.config(deps);
-
-            if (callback.splice) {
-                //callback is an array, which means it is a dependency list.
-                //Adjust args if there are dependencies
-                deps = callback;
-                callback = relName;
-                relName = null;
-            } else {
-                deps = undef;
-            }
-        }
-
-        //Support require(['a'])
-        callback = callback || function () {};
-
-        //If relName is a function, it is an errback handler,
-        //so remove it.
-        if (typeof relName === 'function') {
-            relName = forceSync;
-            forceSync = alt;
-        }
-
-        //Simulate async callback;
-        if (forceSync) {
-            main(undef, deps, callback, relName);
-        } else {
-            setTimeout(function () {
-                main(undef, deps, callback, relName);
-            }, 15);
-        }
-
-        return req;
-    };
+    requirejs = require = req = makeRequire();
 
     /**
      * Just drops the config on the floor, but returns req in case
@@ -781,67 +849,6 @@ var requirejs, require, define;
         config = cfg;
         return req;
     };
-
-    req.nameToUrl = function (moduleName, ext) {
-        var paths, pkgs, pkg, pkgPath, syms, i, parentModule, url,
-            parentPath;
-
-        //If a colon is in the URL, it indicates a protocol is used and it is just
-        //an URL to a file, or if it starts with a slash, contains a query arg (i.e. ?)
-        //or ends with .js, then assume the user meant to use an url and not a module id.
-        //The slash is important for protocol-less URLs as well as full paths.
-        if (urlRegExp.test(moduleName)) {
-            //Just a plain path, not module name lookup, so just return it.
-            //Add extension if it is included. This is a bit wonky, only non-.js things pass
-            //an extension, this method probably needs to be reworked.
-            url = moduleName + (ext || '');
-        } else {
-            //A module that needs to be converted to a path.
-            paths = config.paths;
-            pkgs = config.pkgs;
-
-            syms = moduleName.split('/');
-            //For each module name segment, see if there is a path
-            //registered for it. Start with most specific name
-            //and work up from it.
-            for (i = syms.length; i > 0; i -= 1) {
-                parentModule = syms.slice(0, i).join('/');
-                pkg = getOwn(pkgs, parentModule);
-                parentPath = getOwn(paths, parentModule);
-                if (parentPath) {
-                    //If an array, it means there are a few choices,
-                    //Choose the one that is desired
-                    if (Array.isArray(parentPath)) {
-                        parentPath = parentPath[0];
-                    }
-                    syms.splice(0, i, parentPath);
-                    break;
-                } else if (pkg) {
-                    //If module name is just the package name, then looking
-                    //for the main module.
-                    if (moduleName === pkg.name) {
-                        pkgPath = pkg.location + '/' + pkg.main;
-                    } else {
-                        pkgPath = pkg.location;
-                    }
-                    syms.splice(0, i, pkgPath);
-                    break;
-                }
-            }
-
-            //Join the path parts together, then figure out if baseUrl is needed.
-            url = syms.join('/');
-            url += (ext || (/\?/.test(url) ? '' : '.js'));
-            url = (url.charAt(0) === '/' || url.match(/^[\w\+\.\-]+:/) ? '' : config.baseUrl) + url;
-        }
-
-        return config.urlArgs ? url +
-                                ((url.indexOf('?') === -1 ? '?' : '&') +
-                                 config.urlArgs) : url;
-    };
-
-    req.isBrowser = typeof document !== 'undefined' &&
-        typeof navigator !== 'undefined';
 
     req._d = {
         defined: defined,
