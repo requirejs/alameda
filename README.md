@@ -20,7 +20,7 @@ and the plugin's load() method is not called.
 
 Opted to also defined requirejs name to make passimg tests easier.
 
-see copy script
+see copy script - > rename dynamite to requirejs?
 also assumes other projects in the requirejs github groups are checked
 out as siblings:
 
