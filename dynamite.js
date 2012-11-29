@@ -718,11 +718,12 @@ var requirejs, require, define;
 
     load = typeof importScripts === 'function' ?
             function (map) {
-                loadCount += 1;
-                importScripts(map.url);
-                loadCount -= 1;
-                callWaitingDefine(map.f);
                 startTime = (new Date()).getTime();
+                //Ask for the deferred so loading is triggered.
+                //Do this before loading, since loading is sync.
+                getDefer(map.f);
+                importScripts(map.url);
+                callWaitingDefine(map.f);
             } :
             function (map) {
                 var name = map.f,
