@@ -1,7 +1,8 @@
-#dynamite
+#alameda
 
-TODO: almond + dynamic loading, and only for modern browsers. Specifically,
-latest WebKit, Firefox, Opera and IE10+.
+::still under construction::
+
+TODO: almond + dynamic loading, and only for modern browsers. Specifically, latest WebKit, Firefox, Opera and IE10+.
 
 Array.isArray, array extras, standards script loading, which for IE is IE10+
 
@@ -20,7 +21,7 @@ and the plugin's load() method is not called.
 
 Opted to also defined requirejs name to make passimg tests easier.
 
-see copy script - > rename dynamite to requirejs?
+see copy script - > rename alameda to requirejs?
 also assumes other projects in the requirejs github groups are checked
 out as siblings:
 
@@ -41,4 +42,4 @@ out as siblings:
 ## How to get help
 
 * Contact the [requirejs list](https://groups.google.com/group/requirejs).
-* Open issues in the [issue tracker](https://github.com/requirejs/dynamite/issues).
+* Open issues in the [issue tracker](https://github.com/requirejs/alameda/issues).

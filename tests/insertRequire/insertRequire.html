@@ -1,10 +1,10 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>dynamite: insertRequire Test</title>
+    <title>alameda: insertRequire Test</title>
     <script type="text/javascript" src="../doh/runner.js"></script>
     <script type="text/javascript" src="../doh/_browserRunner.js"></script>
-    <script type="text/javascript" src="../../dynamite.js"></script>
+    <script type="text/javascript" src="../../alameda.js"></script>
     <script type="text/javascript">
         define('a', ['b'], function (b) {
             doh.register(
@@ -26,9 +26,9 @@
     </script>
 </head>
 <body>
-    <h1>dynamite: insertRequire Test</h1>
+    <h1>alameda: insertRequire Test</h1>
 
-    <p>Make sure dynamite can handle juse a plain require(['a']) used by
+    <p>Make sure alameda can handle juse a plain require(['a']) used by
     r.js's insertRequire build option. More info:
     <a href="https://github.com/jrburke/almond/issues/27">27</a>.</p>
 
