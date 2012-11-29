@@ -16,6 +16,16 @@ hook used for builds/some third party tools.
 * requirePluginLoad: depends too much on requirejs sync resolution for that particular built case. Not technically a deficiency in the loader, the globals.main does get set correctly,
 and the plugin's load() method is not called.
 
+
+## Things that could be considered optional
+
+* loader plugins
+* require.defined/specified
+* shim support
+* map support
+* packages support?
+* Web Worker support
+
 ## How to get help
 
 * Contact the [requirejs list](https://groups.google.com/group/requirejs).

@@ -6,13 +6,13 @@
 //Going sloppy to avoid 'use strict' string cost, but strict practices should
 //be followed.
 /*jslint sloppy: true, nomen: true, regexp: true */
-/*global setTimeout, process, document, navigator */
+/*global setTimeout, process, document, navigator, importScripts */
 
 var requirejs, require, define;
 (function (global, undef) {
 
     var prim, main, req, makeMap, callDep, handlers, waitingDefine, loadTimeId,
-        dataMain, src, mainScript, subPath, bootstrapConfig,
+        dataMain, src, mainScript, subPath, bootstrapConfig, load,
         defined = {},
         waiting = {},
         config = {
@@ -628,7 +628,8 @@ var requirejs, require, define;
             define.apply(null, waitingDefine);
             waitingDefine = null;
         } else {
-            define(name);
+            var shim = getOwn(config.shim, name) || {};
+            define(name, shim.deps || [], shim.exportsFn);
         }
     }
 
@@ -715,41 +716,54 @@ var requirejs, require, define;
         return load;
     }
 
-    function load(map) {
-        var name = map.f,
-            url = map.url,
-            script = document.createElement('script');
-        script.setAttribute('data-requiremodule', name);
-        script.type = config.scriptType || 'text/javascript';
-        script.charset = 'utf-8';
-        script.async = true;
+    load = typeof importScripts === 'function' ?
+            function (map) {
+                loadCount += 1;
+                importScripts(map.url);
+                loadCount -= 1;
+                callWaitingDefine(map.f);
+                startTime = (new Date()).getTime();
+            } :
+            function (map) {
+                var name = map.f,
+                    url = map.url,
+                    script = document.createElement('script');
+                script.setAttribute('data-requiremodule', name);
+                script.type = config.scriptType || 'text/javascript';
+                script.charset = 'utf-8';
+                script.async = true;
 
-        loadCount += 1;
+                loadCount += 1;
 
-        script.addEventListener('load', function (evt) {
-            loadCount -= 1;
-            callWaitingDefine(name);
-        }, false);
-        script.addEventListener('error', function (evt) {
-            var err = new Error('Load failed: ' + name);
-            err.requireModules = [name];
-            //INVESTIGATE: can error fire as well as load?
-            //Maybe load happens, but a syntax error?
-            //If so loadCount will be a mess.
-            loadCount -= 1;
-            getDefer(name).reject(err);
-        }, false);
+                script.addEventListener('load', function (evt) {
+                    loadCount -= 1;
+                    callWaitingDefine(name);
+                }, false);
+                script.addEventListener('error', function (evt) {
+                    var err = new Error('Load failed: ' + name);
+                    err.requireModules = [name];
+                    //INVESTIGATE: can error fire as well as load?
+                    //Maybe load happens, but a syntax error?
+                    //If so loadCount will be a mess.
+                    loadCount -= 1;
+                    getDefer(name).reject(err);
+                }, false);
 
-        script.src = url;
+                script.src = url;
 
-        document.head.appendChild(script);
+                document.head.appendChild(script);
 
-        startTime = (new Date()).getTime();
+                startTime = (new Date()).getTime();
+            };
+
+    function callPlugin(plugin, map, relName) {
+        plugin.load(map.n, makeRequire(relName), makeLoad(map.f), {});
     }
 
     callDep = function (map, relName) {
         var args,
-            name = map.f;
+            name = map.f,
+            shim = config.shim[name];
 
         if (hasProp(waiting, name)) {
             args = waiting[name];
@@ -760,15 +774,26 @@ var requirejs, require, define;
                 return callDep(makeMap(map.pr)).then(function (plugin) {
                     //Redo map now that plugin is known to be loaded
                     var newMap = makeMap(name, relName, true),
-                        newId = newMap.f;
+                        newId = newMap.f,
+                        shim = getOwn(config.shim, newId);
 
                     //Make sure to only call load once per resource. Many
                     //calls could have been queued waiting for plugin to load.
                     if (!hasProp(calledPlugin, newId)) {
-                        plugin.load(newMap.n, makeRequire(relName), makeLoad(newId), {});
                         calledPlugin[newId] = true;
+                        if (shim && shim.deps) {
+                            req(shim.deps, function () {
+                                callPlugin(plugin, newMap, relName);
+                            });
+                        } else {
+                            callPlugin(plugin, newMap, relName);
+                        }
                     }
                     return getDefer(newId).promise;
+                });
+            } else if (shim && shim.deps) {
+                req(shim.deps, function () {
+                    load(map);
                 });
             } else {
                 load(map);
@@ -797,6 +822,10 @@ var requirejs, require, define;
      * too, as an optimization.
      */
     makeMap = function (name, relName, applyMap) {
+        if (typeof name !== 'string') {
+            return name;
+        }
+
         var plugin, url,
             parts = splitPrefix(name),
             prefix = parts[0];
@@ -1183,24 +1212,26 @@ var requirejs, require, define;
     }
 
     //data-main support.
-    dataMain = document.querySelectorAll('script[data-main]')[0];
-    dataMain = dataMain && dataMain.getAttribute('data-main');
-    if (dataMain) {
-        //Set final baseUrl if there is not already an explicit one.
-        if (!config.baseUrl) {
-            //Pull off the directory of data-main for use as the
-            //baseUrl.
-            src = dataMain.split('/');
-            mainScript = src.pop();
-            subPath = src.length ? src.join('/')  + '/' : './';
+    if (req.isBrowser) {
+        dataMain = document.querySelectorAll('script[data-main]')[0];
+        dataMain = dataMain && dataMain.getAttribute('data-main');
+        if (dataMain) {
+            //Set final baseUrl if there is not already an explicit one.
+            if (!config.baseUrl) {
+                //Pull off the directory of data-main for use as the
+                //baseUrl.
+                src = dataMain.split('/');
+                mainScript = src.pop();
+                subPath = src.length ? src.join('/')  + '/' : './';
 
-            config.baseUrl = subPath;
-            dataMain = mainScript;
+                config.baseUrl = subPath;
+                dataMain = mainScript;
+            }
+
+            //Strip off any trailing .js since dataMain is now
+            //like a module name.
+            dataMain = dataMain.replace(jsSuffixRegExp, '');
+            require([dataMain]);
         }
-
-        //Strip off any trailing .js since dataMain is now
-        //like a module name.
-        dataMain = dataMain.replace(jsSuffixRegExp, '');
-        require([dataMain]);
     }
 }(this));
