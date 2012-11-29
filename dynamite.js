@@ -27,6 +27,7 @@ var requirejs, require, define;
         requireDeferreds = [],
         deferreds = {},
         calledDefine = {},
+        calledPlugin = {},
         hasOwn = Object.prototype.hasOwnProperty,
         aps = [].slice,
         loadCount = 0,
@@ -567,13 +568,11 @@ var requirejs, require, define;
             //value over exports use.
             if (d.cjsModule && d.cjsModule.exports !== undef &&
                     d.cjsModule.exports !== defined[name]) {
-                resolve(name, d, d.cjsModule.exports);
-            } else if (ret !== undef || !d.usingExports) {
-                //Use the return value from the function.
-                resolve(name, d, ret);
-            } else {
-                resolve(name, d, defined[name]);
+                ret = d.cjsModule.exports;
+            } else if (ret === undef || d.usingExports) {
+                ret = defined[name];
             }
+            resolve(name, d, ret);
         } else {
             d.resolve();
         }
@@ -759,8 +758,9 @@ var requirejs, require, define;
 
                     //Make sure to only call load once per resource. Many
                     //calls could have been queued waiting for plugin to load.
-                    if (!hasProp(deferreds, newId)) {
+                    if (!hasProp(calledPlugin, newId)) {
                         plugin.load(newMap.n, makeRequire(relName), makeLoad(newId), {});
+                        calledPlugin[newId] = true;
                     }
                     return getDefer(newId).promise;
                 });
