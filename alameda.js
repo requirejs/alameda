@@ -35,7 +35,7 @@ var requirejs, require, define;
         errCount = 0,
         trackedErrors = {},
         currDirRegExp = /^\.\//,
-        urlRegExp = /(^\/)|\:|\?(\.js$)/,
+        urlRegExp = /^\/|\:|\?|\.js$/,
         commentRegExp = /(\/\*([\s\S]*?)\*\/|([^:]|^)\/\/(.*)$)/mg,
         cjsRequireRegExp = /[^.]\s*require\s*\(\s*["']([^'"\s]+)["']\s*\)/g,
         jsSuffixRegExp = /\.js$/;
@@ -1234,18 +1234,6 @@ var requirejs, require, define;
         dataMain = document.querySelectorAll('script[data-main]')[0];
         dataMain = dataMain && dataMain.getAttribute('data-main');
         if (dataMain) {
-            //Set final baseUrl if there is not already an explicit one.
-            if (!config.baseUrl) {
-                //Pull off the directory of data-main for use as the
-                //baseUrl.
-                src = dataMain.split('/');
-                mainScript = src.pop();
-                subPath = src.length ? src.join('/')  + '/' : './';
-
-                config.baseUrl = subPath;
-                dataMain = mainScript;
-            }
-
             //Strip off any trailing .js since dataMain is now
             //like a module name.
             dataMain = dataMain.replace(jsSuffixRegExp, '');

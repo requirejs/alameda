@@ -8,15 +8,14 @@ Array.isArray, array extras, standards script loading, which for IE is IE10+
 
 * Error reporting, but no error recovery
 
+backport any prim changes
 
-## requirejs tests that doe not pass
+## requirejs tests that do not pass
 
 * multiversion: not supported yet
 * onResourceLoadNestedRequire: depends on implementing requirejs.onResourceLoad
 hook used for builds/some third party tools.
-* requirePluginLoad: depends too much on requirejs sync resolution for that particular built case. Not technically a deficiency in the loader, the globals.main does get set correctly,
 and the plugin's load() method is not called.
-* definedSpecified: no require.defined() & require.specified.
 * None of the error/retries, no require.undef()
 
 Opted to also defined requirejs name to make passimg tests easier.
@@ -38,6 +37,12 @@ out as siblings:
 * packages support?
 * Web Worker support
 * contexts?
+
+No undef, onResourceLoad before contexts:
+3997 min.gz
+9270 min
+
+
 
 ## How to get help
 
