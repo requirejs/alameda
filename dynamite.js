@@ -9,13 +9,21 @@
 /*global setTimeout, process, document, navigator */
 
 var requirejs, require, define;
-(function (undef) {
+(function (global, undef) {
 
     var prim, main, req, makeMap, handlers, waitingDefine, loadTimeId,
         dataMain, src, mainScript, subPath, bootstrapConfig,
         defined = {},
         waiting = {},
-        config = {},
+        config = {
+            waitSeconds: 7,
+            baseUrl: './',
+            paths: {},
+            pkgs: {},
+            shim: {},
+            map: {},
+            config: {}
+        },
         requireDeferreds = [],
         deferreds = {},
         defining = {},
@@ -25,6 +33,7 @@ var requirejs, require, define;
         startTime = 0,
         errCount = 0,
         trackedErrors = {},
+        currDirRegExp = /^\.\//,
         urlRegExp = /(^\/)|\:|\?(\.js$)/,
         commentRegExp = /(\/\*([\s\S]*?)\*\/|([^:]|^)\/\/(.*)$)/mg,
         cjsRequireRegExp = /[^.]\s*require\s*\(\s*["']([^'"\s]+)["']\s*\)/g,
@@ -79,6 +88,19 @@ var requirejs, require, define;
             });
         }
         return target;
+    }
+
+    //Allow getting a global that expressed in
+    //dot notation, like 'a.b.c'.
+    function getGlobal(value) {
+        if (!value) {
+            return value;
+        }
+        var g = global;
+        value.split('.').forEach(function (part) {
+            g = g[part];
+        });
+        return g;
     }
 
     //START prim
@@ -247,79 +269,109 @@ var requirejs, require, define;
     //END prim
 
     /**
+     * Trims the . and .. from an array of path segments.
+     * It will keep a leading path segment if a .. will become
+     * the first path segment, to help with module name lookups,
+     * which act like paths, but can be remapped. But the end result,
+     * all paths that use this function should look normalized.
+     * NOTE: this method MODIFIES the input array.
+     * @param {Array} ary the array of path segments.
+     */
+    function trimDots(ary) {
+        var i, part;
+        for (i = 0; ary[i]; i += 1) {
+            part = ary[i];
+            if (part === '.') {
+                ary.splice(i, 1);
+                i -= 1;
+            } else if (part === '..') {
+                if (i === 1 && (ary[2] === '..' || ary[0] === '..')) {
+                    //End of the line. Keep at least one non-dot
+                    //path segment at the front so it can be mapped
+                    //correctly to disk. Otherwise, there is likely
+                    //no path mapping for a path starting with '..'.
+                    //This can still fail, but catches the most reasonable
+                    //uses of ..
+                    break;
+                } else if (i > 0) {
+                    ary.splice(i - 1, 2);
+                    i -= 2;
+                }
+            }
+        }
+    }
+
+    /**
      * Given a relative module name, like ./something, normalize it to
      * a real name that can be mapped to a path.
      * @param {String} name the relative name
      * @param {String} baseName a real name that the name arg is relative
      * to.
+     * @param {Boolean} applyMap apply the map config to the value. Should
+     * only be done if this normalization is for a dependency ID.
      * @returns {String} normalized name
      */
-    function normalize(name, baseName, skipMap) {
-        var nameParts, nameSegment, mapValue, foundMap,
-            foundI, foundStarMap, starI, i, j, part,
-            baseParts = baseName && baseName.split("/"),
-            map = config.map,
-            starMap = (!skipMap && map && map['*']) || {};
+    function normalize(name, baseName, applyMap) {
+        var pkgName, pkgConfig, mapValue, nameParts, i, j, nameSegment,
+            foundMap, foundI, foundStarMap, starI,
+            baseParts = baseName && baseName.split('/'),
+            normalizedBaseParts = baseParts,
+            map = applyMap && config.map,
+            starMap = map && map['*'];
 
         //Adjust any relative paths.
-        if (name && name.charAt(0) === ".") {
+        if (name && name.charAt(0) === '.') {
             //If have a base name, try to normalize against it,
             //otherwise, assume it is a top-level require that will
             //be relative to baseUrl in the end.
             if (baseName) {
-                //Convert baseName to array, and lop off the last part,
-                //so that . matches that "directory" and not name of the baseName's
-                //module. For instance, baseName of "one/two/three", maps to
-                //"one/two/three.js", but we want the directory, "one/two" for
-                //this normalization.
-                baseParts = baseParts.slice(0, baseParts.length - 1);
-
-                name = baseParts.concat(name.split("/"));
-
-                //start trimDots
-                for (i = 0; i < name.length; i += 1) {
-                    part = name[i];
-                    if (part === ".") {
-                        name.splice(i, 1);
-                        i -= 1;
-                    } else if (part === "..") {
-                        if (i === 1 && (name[2] === '..' || name[0] === '..')) {
-                            //End of the line. Keep at least one non-dot
-                            //path segment at the front so it can be mapped
-                            //correctly to disk. Otherwise, there is likely
-                            //no path mapping for a path starting with '..'.
-                            //This can still fail, but catches the most reasonable
-                            //uses of ..
-                            break;
-                        } else if (i > 0) {
-                            name.splice(i - 1, 2);
-                            i -= 2;
-                        }
-                    }
+                if (getOwn(config.pkgs, baseName)) {
+                    //If the baseName is a package name, then just treat it as one
+                    //name to concat the name with.
+                    normalizedBaseParts = baseParts = [baseName];
+                } else {
+                    //Convert baseName to array, and lop off the last part,
+                    //so that . matches that 'directory' and not name of the baseName's
+                    //module. For instance, baseName of 'one/two/three', maps to
+                    //'one/two/three.js', but we want the directory, 'one/two' for
+                    //this normalization.
+                    normalizedBaseParts = baseParts.slice(0, baseParts.length - 1);
                 }
-                //end trimDots
 
-                name = name.join("/");
+                name = normalizedBaseParts.concat(name.split('/'));
+                trimDots(name);
+
+                //Some use of packages may use a . path to reference the
+                //'main' module name, so normalize for that.
+                pkgConfig = getOwn(config.pkgs, (pkgName = name[0]));
+                name = name.join('/');
+                if (pkgConfig && name === pkgName + '/' + pkgConfig.main) {
+                    name = pkgName;
+                }
+            } else if (name.indexOf('./') === 0) {
+                // No baseName, so this is ID is resolved relative
+                // to baseUrl, pull off the leading dot.
+                name = name.substring(2);
             }
         }
 
         //Apply map config if available.
-        if ((baseParts || starMap) && map) {
+        if (applyMap && (baseParts || starMap) && map) {
             nameParts = name.split('/');
 
             for (i = nameParts.length; i > 0; i -= 1) {
-                nameSegment = nameParts.slice(0, i).join("/");
+                nameSegment = nameParts.slice(0, i).join('/');
 
                 if (baseParts) {
                     //Find the longest baseName segment match in the config.
                     //So, do joins on the biggest to smallest lengths of baseParts.
                     for (j = baseParts.length; j > 0; j -= 1) {
-                        mapValue = map[baseParts.slice(0, j).join('/')];
+                        mapValue = getOwn(map, baseParts.slice(0, j).join('/'));
 
-                        //baseName segment has  config, find if it has one for
+                        //baseName segment has config, find if it has one for
                         //this name.
                         if (mapValue) {
-                            mapValue = mapValue[nameSegment];
+                            mapValue = getOwn(mapValue, nameSegment);
                             if (mapValue) {
                                 //Match, update name to the new value.
                                 foundMap = mapValue;
@@ -337,8 +389,8 @@ var requirejs, require, define;
                 //Check for a star map match, but just hold on to it,
                 //if there is a shorter segment match later in a matching
                 //config, then favor over this star map.
-                if (!foundStarMap && starMap && starMap[nameSegment]) {
-                    foundStarMap = starMap[nameSegment];
+                if (!foundStarMap && starMap && getOwn(starMap, nameSegment)) {
+                    foundStarMap = getOwn(starMap, nameSegment);
                     starI = i;
                 }
             }
@@ -357,6 +409,18 @@ var requirejs, require, define;
         return name;
     }
 
+
+    function makeShimExports(value) {
+        function fn() {
+            var ret;
+            if (value.init) {
+                ret = value.init.apply(global, arguments);
+            }
+            return ret || (value.exports && getGlobal(value.exports));
+        }
+        return fn;
+    }
+
     function makeRequire(relName) {
         function req(deps, callback, errback, alt) {
             if (typeof deps === "string") {
@@ -368,7 +432,7 @@ var requirejs, require, define;
                 //deps arg is the module name, and second arg (if passed)
                 //is just the relName.
                 //Normalize module name, if it contains . or ..
-                var name = makeMap(deps, relName).f;
+                var name = makeMap(deps, relName, true).f;
                 if (!hasProp(defined, name)) {
                     throw new Error('Not loaded: ' + name);
                 }
@@ -474,7 +538,7 @@ var requirejs, require, define;
                 moduleNamePlusExt = moduleNamePlusExt.substring(0, index);
             }
 
-            return req.nameToUrl(normalize(moduleNamePlusExt, relName, true), ext);
+            return req.nameToUrl(normalize(moduleNamePlusExt, relName), ext);
         };
 
         return req;
@@ -489,7 +553,7 @@ var requirejs, require, define;
 
     function makeNormalize(relName) {
         return function (name) {
-            return normalize(name, relName);
+            return normalize(name, relName, true);
         };
     }
 
@@ -532,7 +596,7 @@ var requirejs, require, define;
     function makeDefer(name) {
         var d = prim();
         if (name) {
-            d.map = makeMap(name);
+            d.map = makeMap(name, null, true);
         }
         d.depCount = 0;
         d.depMax = 0;
@@ -608,9 +672,9 @@ var requirejs, require, define;
             main.apply(undef, args);
         } else if (!hasProp(deferreds, name)) {
             if (map.pr) {
-                return callDep(makeMap(map.pr, null, true)).then(function (plugin) {
+                return callDep(makeMap(map.pr)).then(function (plugin) {
                     //Redo map now that plugin is known to be loaded
-                    var newMap = makeMap(name, relName);
+                    var newMap = makeMap(name, relName, true);
                     plugin.load(newMap.n, makeRequire(relName), makeLoad(newMap.f), {});
                     return getDefer(newMap.f).promise;
                 });
@@ -640,7 +704,7 @@ var requirejs, require, define;
      * for normalization if necessary. Grabs a ref to plugin
      * too, as an optimization.
      */
-    makeMap = function (name, relName, skipMap) {
+    makeMap = function (name, relName, applyMap) {
         var plugin, url,
             parts = splitPrefix(name),
             prefix = parts[0];
@@ -648,7 +712,7 @@ var requirejs, require, define;
         name = parts[1];
 
         if (prefix) {
-            prefix = normalize(prefix, relName, skipMap);
+            prefix = normalize(prefix, relName, applyMap);
             plugin = hasProp(defined, prefix) && defined[prefix];
         }
 
@@ -657,10 +721,10 @@ var requirejs, require, define;
             if (plugin && plugin.normalize) {
                 name = plugin.normalize(name, makeNormalize(relName));
             } else {
-                name = normalize(name, relName, skipMap);
+                name = normalize(name, relName, applyMap);
             }
         } else {
-            name = normalize(name, relName, skipMap);
+            name = normalize(name, relName, applyMap);
             parts = splitPrefix(name);
             prefix = parts[0];
             name = parts[1];
@@ -743,7 +807,7 @@ var requirejs, require, define;
         var err,
             reqDefs = [],
             noLoads = [],
-            waitInterval = (config.waitSeconds || 7) * 1000,
+            waitInterval = config.waitSeconds * 1000,
             //It is possible to disable the wait interval by using waitSeconds of 0.
             expired = waitInterval && (startTime + waitInterval) < new Date().getTime();
 
@@ -851,7 +915,7 @@ var requirejs, require, define;
 
             deps.forEach(function (depName, i) {
                 var depMap;
-                deps[i] = depMap = makeMap(depName, relName);
+                deps[i] = depMap = makeMap(depName, relName, true);
                 depName = depMap.f;
 
                 //Fast path CommonJS standard dependencies.
@@ -909,12 +973,76 @@ var requirejs, require, define;
             }
         }
 
-        mixin(config, cfg, true);
+        //Save off the paths and packages since they require special processing,
+        //they are additive.
+        var pkgs = config.pkgs,
+            shim = config.shim,
+            objs = {
+                paths: true,
+                config: true,
+                map: true
+            };
 
-        if (!config.baseUrl) {
-            config.baseUrl = './';
+        eachProp(cfg, function (value, prop) {
+            if (objs[prop]) {
+                if (prop === 'map') {
+                    mixin(config[prop], value, true, true);
+                } else {
+                    mixin(config[prop], value, true);
+                }
+            } else {
+                config[prop] = value;
+            }
+        });
+
+        //Merge shim
+        if (cfg.shim) {
+            eachProp(cfg.shim, function (value, id) {
+                //Normalize the structure
+                if (Array.isArray(value)) {
+                    value = {
+                        deps: value
+                    };
+                }
+                if ((value.exports || value.init) && !value.exportsFn) {
+                    value.exportsFn = makeShimExports(value);
+                }
+                shim[id] = value;
+            });
+            config.shim = shim;
         }
 
+        //Adjust packages if necessary.
+        if (cfg.packages) {
+            cfg.packages.forEach(function (pkgObj) {
+                var location;
+
+                pkgObj = typeof pkgObj === 'string' ? { name: pkgObj } : pkgObj;
+                location = pkgObj.location;
+
+                //Create a brand new object on pkgs, since currentPackages can
+                //be passed in again, and config.pkgs is the internal transformed
+                //state for all package configs.
+                pkgs[pkgObj.name] = {
+                    name: pkgObj.name,
+                    location: location || pkgObj.name,
+                    //Remove leading dot in main, so main paths are normalized,
+                    //and remove any trailing .js, since different package
+                    //envs have different conventions: some use a module name,
+                    //some use a file name.
+                    main: (pkgObj.main || 'main')
+                          .replace(currDirRegExp, '')
+                          .replace(jsSuffixRegExp, '')
+                };
+            });
+
+            //Done with modifications, assing packages back to context config
+            config.pkgs = pkgs;
+        }
+
+        //If a deps array or a config callback is specified, then call
+        //require with those args. This is useful when require is defined as a
+        //config object before require.js is loaded.
         if (cfg.deps) {
             req(cfg.deps, cfg.callback);
         }
@@ -987,4 +1115,4 @@ var requirejs, require, define;
         dataMain = dataMain.replace(jsSuffixRegExp, '');
         require([dataMain]);
     }
-}());
+}(this));

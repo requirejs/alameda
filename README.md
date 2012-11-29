@@ -3,6 +3,7 @@
 TODO: almond + dynamic loading, and only for modern browsers. Specifically,
 latest WebKit, Firefox, Opera and IE10+.
 
+Array.isArray, array extras, standards script loading, which for IE is IE10+
 
 * Error reporting, but no error recovery
 
