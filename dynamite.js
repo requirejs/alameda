@@ -541,6 +541,15 @@ var requirejs, require, define;
             return req.nameToUrl(normalize(moduleNamePlusExt, relName), ext);
         };
 
+        req.defined = function (id) {
+            return hasProp(defined, makeMap(id, relName, true).f);
+        };
+
+        req.specified = function (id) {
+            id = makeMap(id, relName, true).f;
+            return hasProp(defined, id) || hasProp(deferreds, id);
+        };
+
         return req;
     }
 

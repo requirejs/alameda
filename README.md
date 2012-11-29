@@ -18,6 +18,16 @@ and the plugin's load() method is not called.
 * definedSpecified: no require.defined() & require.specified.
 * None of the error/retries, no require.undef()
 
+Opted to also defined requirejs name to make passimg tests easier.
+
+see copy script
+also assumes other projects in the requirejs github groups are checked
+out as siblings:
+
+* https://github.com/requirejs/domReady
+* https://github.com/requirejs/text
+* https://github.com/requirejs/i18n
+
 ## Things that could be considered optional
 
 * loader plugins
@@ -26,6 +36,7 @@ and the plugin's load() method is not called.
 * map support
 * packages support?
 * Web Worker support
+* contexts?
 
 ## How to get help
 
