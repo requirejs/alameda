@@ -425,8 +425,7 @@ var requirejs, require, define;
         function req(deps, callback, errback, alt) {
             if (typeof deps === "string") {
                 if (handlers[deps]) {
-                    //callback in this case is really relName
-                    return handlers[deps](callback);
+                    return handlers[deps](relName);
                 }
                 //Just return the module wanted. In this scenario, the
                 //deps arg is the module name, and second arg (if passed)
