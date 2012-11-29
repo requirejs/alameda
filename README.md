@@ -2,13 +2,17 @@
 
 ::still under construction::
 
-TODO: almond + dynamic loading, and only for modern browsers. Specifically, latest WebKit, Firefox, Opera and IE10+.
+TODO: almond + dynamic loading, and only for modern browsers. Specifically, latest WebKit, Firefox, Opera and IE10+. So, PS3/NetFront probably out. Find the IE bug number.
 
 Array.isArray, array extras, standards script loading, which for IE is IE10+
 
+Not a complete thing, cannot be used by r.js for example, only runs
+in browser, not node, etc...
+
 * Error reporting, but no error recovery
 
-backport any prim changes
+* backport any prim changes
+* Test in other browsers.
 
 ## requirejs tests that do not pass
 
@@ -45,6 +49,19 @@ No undef, onResourceLoad before contexts:
 After contexts:
 4138 min.gz
 9523 min
+
+Remove prim (assume byoa promises)
+3709 min.gz
+8260 min
+
+PLUS: prim, shim/getGlobal, map, web workers/isBrowser, require.defined/specified:
+3298 min.gz
+7130 min
+
+PLUS: no plugins (map.pr, plugin, makeLoad)
+2970 min.gz
+6410
+
 
 
 ## How to get help
