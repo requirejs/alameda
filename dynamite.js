@@ -11,7 +11,7 @@
 var requirejs, require, define;
 (function (global, undef) {
 
-    var prim, main, req, makeMap, handlers, waitingDefine, loadTimeId,
+    var prim, main, req, makeMap, callDep, handlers, waitingDefine, loadTimeId,
         dataMain, src, mainScript, subPath, bootstrapConfig,
         defined = {},
         waiting = {},
@@ -456,7 +456,7 @@ var requirejs, require, define;
 
             //Simulate async callback;
             prim.nextTick(function () {
-                main(undef, deps, callback, errback, relName);
+                main(undef, deps || [], callback, errback, relName);
             });
 
             return req;
@@ -557,7 +557,7 @@ var requirejs, require, define;
     }
 
     function defineModule(d) {
-        var name = d.map && d.map.f,
+        var name = d.map.f,
             ret = d.factory.apply(defined[name], d.values);
 
         if (name) {
@@ -594,9 +594,7 @@ var requirejs, require, define;
 
     function makeDefer(name) {
         var d = prim();
-        if (name) {
-            d.map = makeMap(name, null, true);
-        }
+        d.map = name ? makeMap(name, null, true) : {};
         d.depCount = 0;
         d.depMax = 0;
         d.values = [];
@@ -619,10 +617,97 @@ var requirejs, require, define;
         return d;
     }
 
-    function makeLoad(depName) {
-        return function (value) {
-            resolve(depName, getDefer(depName), value);
+    function callWaitingDefine(name) {
+        if (waitingDefine) {
+            waitingDefine.unshift(name);
+            define.apply(null, waitingDefine);
+            waitingDefine = null;
+        } else {
+            define(name);
+        }
+    }
+
+    function makeErrback(d, name) {
+        return function (err) {
+            if (!d.rejected()) {
+                if (!err.dynaId) {
+                    err = new Error('"' + (name || 'require callback') +
+                        '": ' + err);
+                    err.dynaId = 'id' + (errCount += 1);
+                }
+                d.reject(err);
+            }
         };
+    }
+
+    function waitForDep(depMap, relName, d, i) {
+        d.depMax += 1;
+
+        //Do the fail at the end to catch errors
+        //in the then callback execution.
+        callDep(depMap, relName).then(function (val) {
+            d.depFinished(val, i);
+        }, makeErrback(d, depMap.f)).fail(makeErrback(d, d.map.f));
+    }
+
+    function makeLoad(id) {
+        var fromTextCalled;
+        function load(value) {
+            //Protect against older plugins that call load after
+            //calling load.fromText
+            if (!fromTextCalled) {
+                resolve(id, getDefer(id), value);
+            }
+        }
+
+        load.error = function (err) {
+            getDefer(id).reject(err);
+        };
+
+        load.fromText = function (text, textAlt) {
+            /*jslint evil: true */
+            var d = getDefer(id),
+                map = makeMap(makeMap(id).n),
+                plainId = map.f;
+
+            fromTextCalled = true;
+
+            //Set up the factory just to be a return of the value from
+            //plainId.
+            d.factory = function (val) {
+                return val;
+            };
+
+            //As of requirejs 2.1.0, support just passing the text, to reinforce
+            //fromText only being called once per resource. Still
+            //support old style of passing moduleName but discard
+            //that moduleName in favor of the internal ref.
+            if (textAlt) {
+                text = textAlt;
+            }
+
+            //Transfer any config to this other module.
+            if (hasProp(config.config, id)) {
+                config.config[plainId] = config.config[id];
+            }
+
+            try {
+                req.exec(text);
+            } catch (e) {
+                throw new Error('fromText eval for ' + plainId +
+                                ' failed: ' + e);
+            }
+
+            //Execute any waiting define created by the plainId
+            callWaitingDefine(plainId);
+
+            //Mark this as a dependency for the plugin
+            //resource
+            d.deps = [map];
+            waitForDep(map, null, d, 0);
+        };
+
+        return load;
     }
 
     function load(map) {
@@ -638,12 +723,7 @@ var requirejs, require, define;
 
         script.addEventListener('load', function (evt) {
             loadCount -= 1;
-            if (waitingDefine) {
-                waitingDefine.unshift(name);
-                define.apply(null, waitingDefine);
-            } else {
-                define(name);
-            }
+            callWaitingDefine(name);
         }, false);
         script.addEventListener('error', function (evt) {
             var err = new Error('Load failed: ' + name);
@@ -662,7 +742,7 @@ var requirejs, require, define;
         startTime = (new Date()).getTime();
     }
 
-    function callDep(map, relName) {
+    callDep = function (map, relName) {
         var args,
             name = map.f;
 
@@ -674,9 +754,15 @@ var requirejs, require, define;
             if (map.pr) {
                 return callDep(makeMap(map.pr)).then(function (plugin) {
                     //Redo map now that plugin is known to be loaded
-                    var newMap = makeMap(name, relName, true);
-                    plugin.load(newMap.n, makeRequire(relName), makeLoad(newMap.f), {});
-                    return getDefer(newMap.f).promise;
+                    var newMap = makeMap(name, relName, true),
+                        newId = newMap.f;
+
+                    //Make sure to only call load once per resource. Many
+                    //calls could have been queued waiting for plugin to load.
+                    if (!hasProp(deferreds, newId)) {
+                        plugin.load(newMap.n, makeRequire(relName), makeLoad(newId), {});
+                    }
+                    return getDefer(newId).promise;
                 });
             } else {
                 load(map);
@@ -684,7 +770,7 @@ var requirejs, require, define;
         }
 
         return getDefer(name).promise;
-    }
+    };
 
     //Turns a plugin!resource to [plugin, resource]
     //with the plugin being undefined if the name
@@ -770,7 +856,7 @@ var requirejs, require, define;
     };
 
     function breakCycle(d, traced, processed) {
-        var id = d.map && d.map.f;
+        var id = d.map.f;
 
         traced[id] = true;
         if (!d.finished() && d.deps) {
@@ -863,19 +949,6 @@ var requirejs, require, define;
         });
     }
 
-    function makeErrback(d, name) {
-        return function (err) {
-            if (!d.rejected()) {
-                if (!err.dynaId) {
-                    err = new Error('"' + (name || 'require callback') +
-                        '": ' + err);
-                    err.dynaId = 'id' + (errCount += 1);
-                }
-                d.reject(err);
-            }
-        };
-    }
-
     main = function (name, deps, factory, errback, relName) {
         var depName, map,
             d = getDefer(name);
@@ -929,13 +1002,7 @@ var requirejs, require, define;
                     //CommonJS module spec 1.1
                     d.values[i] = d.cjsModule = handlers.module(name);
                 } else {
-                    d.depMax += 1;
-
-                    //Do the fail at the end to catch errors
-                    //in the then callback execution.
-                    callDep(depMap, relName).then(function (val) {
-                        d.depFinished(val, i);
-                    }, makeErrback(d, depName)).fail(makeErrback(d, name));
+                    waitForDep(depMap, relName, d, i);
                 }
             });
 
@@ -1052,6 +1119,17 @@ var requirejs, require, define;
 
     req.onError = function (err) {
         throw err;
+    };
+
+    /**
+     * Executes the text. Normally just uses eval, but can be modified
+     * to use a better, environment-specific call. Only used for transpiling
+     * loader plugins, not for plain JS modules.
+     * @param {String} text the text to execute/evaluate.
+     */
+    req.exec = function (text) {
+        /*jslint evil: true */
+        return eval(text);
     };
 
     req._d = {
