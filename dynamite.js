@@ -637,8 +637,6 @@ var requirejs, require, define;
         return function (err) {
             if (!d.rejected()) {
                 if (!err.dynaId) {
-                    err = new Error('"' + (name || 'require callback') +
-                        '": ' + err);
                     err.dynaId = 'id' + (errCount += 1);
                 }
                 d.reject(err);
