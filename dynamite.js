@@ -26,11 +26,11 @@ var requirejs, require, define;
         },
         requireDeferreds = [],
         deferreds = {},
-        defining = {},
+        calledDefine = {},
         hasOwn = Object.prototype.hasOwnProperty,
         aps = [].slice,
         loadCount = 0,
-        startTime = 0,
+        startTime = (new Date()).getTime(),
         errCount = 0,
         trackedErrors = {},
         currDirRegExp = /^\.\//,
@@ -440,7 +440,7 @@ var requirejs, require, define;
                 //deps is a config object, not an array.
                 req.config(deps);
 
-                if (callback.splice) {
+                if (Array.isArray(callback)) {
                     //callback is an array, which means it is a dependency list.
                     //Adjust args if there are dependencies
                     deps = callback;
@@ -658,6 +658,8 @@ var requirejs, require, define;
         script.src = url;
 
         document.head.appendChild(script);
+
+        startTime = (new Date()).getTime();
     }
 
     function callDep(map, relName) {
@@ -667,7 +669,6 @@ var requirejs, require, define;
         if (hasProp(waiting, name)) {
             args = waiting[name];
             delete waiting[name];
-            defining[name] = true;
             main.apply(undef, args);
         } else if (!hasProp(deferreds, name)) {
             if (map.pr) {
@@ -808,7 +809,7 @@ var requirejs, require, define;
             noLoads = [],
             waitInterval = config.waitSeconds * 1000,
             //It is possible to disable the wait interval by using waitSeconds of 0.
-            expired = waitInterval && (startTime + waitInterval) < new Date().getTime();
+            expired = waitInterval && (startTime + waitInterval) < (new Date()).getTime();
 
         if (loadCount === 0) {
             reqDefs = requireDeferreds.filter(function (d) {
@@ -835,7 +836,7 @@ var requirejs, require, define;
         //If still waiting on loads, and the waiting load is something
         //other than a plugin resource, or there are still outstanding
         //scripts, then just try back later.
-        if (expired && noLoads.length) {
+        if (expired) {
             //If wait time expired, throw error of unloaded modules.
             noLoads = noLoads.filter(function (d) {
                 return d.map.f;
@@ -843,7 +844,7 @@ var requirejs, require, define;
             err = new Error('timeout', 'Load timeout for modules: ' + noLoads);
             err.requireModules = noLoads;
             throw err;
-        } else if (reqDefs.length) {
+        } else if (loadCount || reqDefs.length) {
             //Something is still waiting to load. Wait for it, but only
             //if a timeout is not already in effect.
             if (!loadTimeId) {
@@ -1057,8 +1058,7 @@ var requirejs, require, define;
         defined: defined,
         waiting: waiting,
         config: config,
-        deferreds: deferreds,
-        defining: defining
+        deferreds: deferreds
     };
 
     define = function (name, deps, callback) {
@@ -1066,6 +1066,11 @@ var requirejs, require, define;
             waitingDefine = [].slice.call(arguments, 0);
             return;
         }
+
+        if (hasProp(calledDefine, name)) {
+            return;
+        }
+        calledDefine[name] = true;
 
         //This module may not have dependencies
         if (deps && !deps.splice) {
