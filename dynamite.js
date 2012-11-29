@@ -432,7 +432,7 @@ var requirejs, require, define;
                 //deps arg is the module name, and second arg (if passed)
                 //is just the relName.
                 //Normalize module name, if it contains . or ..
-                var name = makeMap(deps, relName, true).f;
+                var name = makeMap(deps, relName, true).id;
                 if (!hasProp(defined, name)) {
                     throw new Error('Not loaded: ' + name);
                 }
@@ -542,11 +542,11 @@ var requirejs, require, define;
         };
 
         req.defined = function (id) {
-            return hasProp(defined, makeMap(id, relName, true).f);
+            return hasProp(defined, makeMap(id, relName, true).id);
         };
 
         req.specified = function (id) {
-            id = makeMap(id, relName, true).f;
+            id = makeMap(id, relName, true).id;
             return hasProp(defined, id) || hasProp(deferreds, id);
         };
 
@@ -567,7 +567,7 @@ var requirejs, require, define;
     }
 
     function defineModule(d) {
-        var name = d.map.f,
+        var name = d.map.id,
             ret = d.factory.apply(defined[name], d.values);
 
         if (name) {
@@ -647,6 +647,7 @@ var requirejs, require, define;
             if (!d.rejected()) {
                 if (!err.dynaId) {
                     err.dynaId = 'id' + (errCount += 1);
+                    err.requireModules = [name];
                 }
                 d.reject(err);
             }
@@ -660,7 +661,7 @@ var requirejs, require, define;
         //in the then callback execution.
         callDep(depMap, relName).then(function (val) {
             d.depFinished(val, i);
-        }, makeErrback(d, depMap.f)).fail(makeErrback(d, d.map.f));
+        }, makeErrback(d, depMap.id)).fail(makeErrback(d, d.map.id));
     }
 
     function makeLoad(id) {
@@ -681,7 +682,7 @@ var requirejs, require, define;
             /*jslint evil: true */
             var d = getDefer(id),
                 map = makeMap(makeMap(id).n),
-                plainId = map.f;
+                plainId = map.id;
 
             fromTextCalled = true;
 
@@ -728,15 +729,15 @@ var requirejs, require, define;
                 startTime = (new Date()).getTime();
                 //Ask for the deferred so loading is triggered.
                 //Do this before loading, since loading is sync.
-                getDefer(map.f);
+                getDefer(map.id);
                 importScripts(map.url);
-                callWaitingDefine(map.f);
+                callWaitingDefine(map.id);
             } :
             function (map) {
-                var name = map.f,
+                var id = map.id,
                     url = map.url,
                     script = document.createElement('script');
-                script.setAttribute('data-requiremodule', name);
+                script.setAttribute('data-requiremodule', id);
                 script.type = config.scriptType || 'text/javascript';
                 script.charset = 'utf-8';
                 script.async = true;
@@ -745,16 +746,25 @@ var requirejs, require, define;
 
                 script.addEventListener('load', function (evt) {
                     loadCount -= 1;
-                    callWaitingDefine(name);
+                    callWaitingDefine(id);
                 }, false);
                 script.addEventListener('error', function (evt) {
-                    var err = new Error('Load failed: ' + name);
-                    err.requireModules = [name];
-                    //INVESTIGATE: can error fire as well as load?
-                    //Maybe load happens, but a syntax error?
-                    //If so loadCount will be a mess.
                     loadCount -= 1;
-                    getDefer(name).reject(err);
+                    var err,
+                        pathConfig = getOwn(config.paths, id),
+                        d = getOwn(deferreds, id);
+                    if (pathConfig && Array.isArray(pathConfig) && pathConfig.length > 1) {
+                        script.parentNode.removeChild(script);
+                        //Pop off the first array value, since it failed, and
+                        //retry
+                        pathConfig.shift();
+                        d.map = makeMap(id);
+                        load(d.map);
+                    } else {
+                        err = new Error('Load failed: ' + id);
+                        err.requireModules = [id];
+                        getDefer(id).reject(err);
+                    }
                 }, false);
 
                 script.src = url;
@@ -765,12 +775,12 @@ var requirejs, require, define;
             };
 
     function callPlugin(plugin, map, relName) {
-        plugin.load(map.n, makeRequire(relName), makeLoad(map.f), {});
+        plugin.load(map.n, makeRequire(relName), makeLoad(map.id), {});
     }
 
     callDep = function (map, relName) {
         var args,
-            name = map.f,
+            name = map.id,
             shim = config.shim[name];
 
         if (hasProp(waiting, name)) {
@@ -782,7 +792,7 @@ var requirejs, require, define;
                 return callDep(makeMap(map.pr)).then(function (plugin) {
                     //Redo map now that plugin is known to be loaded
                     var newMap = makeMap(name, relName, true),
-                        newId = newMap.f,
+                        newId = newMap.id,
                         shim = getOwn(config.shim, newId);
 
                     //Make sure to only call load once per resource. Many
@@ -863,7 +873,7 @@ var requirejs, require, define;
 
         //Using ridiculous property names for space reasons
         return {
-            f: prefix ? prefix + '!' + name : name, //fullName
+            id: prefix ? prefix + '!' + name : name, //fullName
             n: name,
             pr: prefix,
             url: url
@@ -899,13 +909,13 @@ var requirejs, require, define;
     };
 
     function breakCycle(d, traced, processed) {
-        var id = d.map.f;
+        var id = d.map.id;
 
         traced[id] = true;
         if (!d.finished() && d.deps) {
             d.deps.forEach(function (depMap, i) {
                 var depIndex,
-                    depId = depMap.f,
+                    depId = depMap.id,
                     dep = !hasProp(handlers, depId) && getDefer(depId);
 
                 //Only force things that have not completed
@@ -915,7 +925,7 @@ var requirejs, require, define;
                 if (dep && !dep.finished() && !processed[depId]) {
                     if (hasProp(traced, depId)) {
                         d.deps.some(function (depMap, i) {
-                            if (depMap.f === depId) {
+                            if (depMap.id === depId) {
                                 depIndex = i;
                                 return true;
                             }
@@ -968,7 +978,7 @@ var requirejs, require, define;
         if (expired) {
             //If wait time expired, throw error of unloaded modules.
             noLoads = noLoads.map(function (d) {
-                return d.map.f;
+                return d.map.id;
             });
             err = new Error('Timeout for modules: ' + noLoads);
             err.requireModules = noLoads;
@@ -1032,7 +1042,7 @@ var requirejs, require, define;
             deps.forEach(function (depName, i) {
                 var depMap;
                 deps[i] = depMap = makeMap(depName, relName, true);
-                depName = depMap.f;
+                depName = depMap.id;
 
                 //Fast path CommonJS standard dependencies.
                 if (depName === "require") {
