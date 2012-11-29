@@ -15,7 +15,8 @@ Array.isArray, array extras, standards script loading, which for IE is IE10+
 hook used for builds/some third party tools.
 * requirePluginLoad: depends too much on requirejs sync resolution for that particular built case. Not technically a deficiency in the loader, the globals.main does get set correctly,
 and the plugin's load() method is not called.
-
+* definedSpecified: no require.defined() & require.specified.
+* None of the error/retries, no require.undef()
 
 ## Things that could be considered optional
 
