@@ -569,7 +569,7 @@ var requirejs, require, define;
             if (d.cjsModule && d.cjsModule.exports !== undef &&
                     d.cjsModule.exports !== defined[name]) {
                 ret = d.cjsModule.exports;
-            } else if (ret === undef || d.usingExports) {
+            } else if (ret === undef && d.usingExports) {
                 ret = defined[name];
             }
             resolve(name, d, ret);
@@ -599,6 +599,12 @@ var requirejs, require, define;
         d.values = [];
         d.depDefined = [];
         d.depFinished = depFinished;
+        if (d.map.pr) {
+            //Plugin resource ID, implicitly
+            //depends on plugin. Track it in deps
+            //so cycle breaking can work
+            d.deps = [makeMap(d.map.pr)];
+        }
         return d;
     }
 
@@ -673,7 +679,7 @@ var requirejs, require, define;
 
             //Set up the factory just to be a return of the value from
             //plainId.
-            d.factory = function (val) {
+            d.factory = function (p, val) {
                 return val;
             };
 
@@ -703,7 +709,7 @@ var requirejs, require, define;
             //Mark this as a dependency for the plugin
             //resource
             d.deps = [map];
-            waitForDep(map, null, d, 0);
+            waitForDep(map, null, d, d.deps.length);
         };
 
         return load;
@@ -713,7 +719,7 @@ var requirejs, require, define;
         var name = map.f,
             url = map.url,
             script = document.createElement('script');
-        script.setAttribute('data-id', name);
+        script.setAttribute('data-requiremodule', name);
         script.type = config.scriptType || 'text/javascript';
         script.charset = 'utf-8';
         script.async = true;
@@ -829,7 +835,7 @@ var requirejs, require, define;
 
     function makeConfig(name) {
         return function () {
-            return (config && config.config && config.config[name]) || {};
+            return config.config[name] || {};
         };
     }
 
@@ -924,10 +930,10 @@ var requirejs, require, define;
         //scripts, then just try back later.
         if (expired) {
             //If wait time expired, throw error of unloaded modules.
-            noLoads = noLoads.filter(function (d) {
+            noLoads = noLoads.map(function (d) {
                 return d.map.f;
             });
-            err = new Error('timeout', 'Load timeout for modules: ' + noLoads);
+            err = new Error('Timeout for modules: ' + noLoads);
             err.requireModules = noLoads;
             throw err;
         } else if (loadCount || reqDefs.length) {
