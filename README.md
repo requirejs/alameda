@@ -43,26 +43,39 @@ out as siblings:
 * contexts?
 
 No undef, onResourceLoad before contexts:
-3997 min.gz
-9270 min
+
+* 3997 min.gz
+* 9270 min
 
 After contexts:
-4138 min.gz
-9523 min
+
+* 4138 min.gz
+* 9523 min
 
 Remove prim (assume byoa promises)
-3709 min.gz
-8260 min
+
+* 3709 min.gz
+* 8260 min
 
 PLUS: prim, shim/getGlobal, map, web workers/isBrowser, require.defined/specified:
-3298 min.gz
-7130 min
+
+* 3298 min.gz
+* 7130 min
 
 PLUS: no plugins (map.pr, plugin, makeLoad)
-2970 min.gz
-6410
 
+* 2970 min.gz
+* 6410 min
 
+almond 0.2.1:
+
+* 1218 min.gz
+* 2480 min
+
+require.js 2.1.2:
+
+* 5994 min.gz
+* 14537 min
 
 ## How to get help
 
