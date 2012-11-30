@@ -52,20 +52,24 @@ After contexts:
 * 4138 min.gz
 * 9523 min
 
+~~~
+
 Remove prim (assume byoa promises)
 
 * 3709 min.gz
 * 8260 min
 
-PLUS: prim, shim/getGlobal, map, web workers/isBrowser, require.defined/specified:
+THEN REMOVE: shim/getGlobal, map, web workers/isBrowser, require.defined/specified:
 
 * 3298 min.gz
 * 7130 min
 
-PLUS: no plugins (map.pr, plugin, makeLoad)
+THEN REMOVE: no plugins (map.pr, plugin, makeLoad)
 
 * 2970 min.gz
 * 6410 min
+
+~~~
 
 almond 0.2.1:
 
