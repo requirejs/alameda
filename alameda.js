@@ -765,7 +765,6 @@ var requirejs, require, define;
 
         load = typeof importScripts === 'function' ?
                 function (map) {
-                    startTime = (new Date()).getTime();
                     //Ask for the deferred so loading is triggered.
                     //Do this before loading, since loading is sync.
                     getDefer(map.id);
@@ -809,8 +808,6 @@ var requirejs, require, define;
                     script.src = url;
 
                     document.head.appendChild(script);
-
-                    startTime = (new Date()).getTime();
                 };
 
         function callPlugin(plugin, map, relName) {
@@ -1123,6 +1120,8 @@ var requirejs, require, define;
                 //worry about defining if have a module name.
                 resolve(name, d, factory);
             }
+
+            startTime = (new Date()).getTime();
 
             if (!name) {
                 check();
