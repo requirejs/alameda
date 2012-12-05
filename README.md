@@ -11,7 +11,6 @@ in browser, not node, etc...
 
 * Error reporting, but no error recovery
 
-* backport any prim changes
 * Test in other browsers.
 
 ## requirejs tests that do not pass

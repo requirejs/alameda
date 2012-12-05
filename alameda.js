@@ -10,7 +10,7 @@
 
 var requirejs, require, define;
 (function (global, undef) {
-    var prim, topReq, dataMain, src, mainScript, subPath,
+    var prim, topReq, dataMain,
         bootstrapConfig = requirejs || require,
         hasOwn = Object.prototype.hasOwnProperty,
         contexts = {},
@@ -91,7 +91,6 @@ var requirejs, require, define;
      * - no hideResolutionConflict, want early errors, trusted code.
      * - each() changed to Array.forEach
      * - removed UMD registration
-     * - added deferred.finished()/rejected()
      */
 
     /**
@@ -266,7 +265,6 @@ var requirejs, require, define;
             deferreds = {},
             calledDefine = {},
             calledPlugin = {},
-            aps = [].slice,
             loadCount = 0,
             startTime = (new Date()).getTime(),
             errCount = 0,
@@ -782,11 +780,11 @@ var requirejs, require, define;
 
                     loadCount += 1;
 
-                    script.addEventListener('load', function (evt) {
+                    script.addEventListener('load', function () {
                         loadCount -= 1;
                         takeQueue(id);
                     }, false);
-                    script.addEventListener('error', function (evt) {
+                    script.addEventListener('error', function () {
                         loadCount -= 1;
                         var err,
                             pathConfig = getOwn(config.paths, id),
@@ -949,7 +947,7 @@ var requirejs, require, define;
 
             traced[id] = true;
             if (!d.finished() && d.deps) {
-                d.deps.forEach(function (depMap, i) {
+                d.deps.forEach(function (depMap) {
                     var depIndex,
                         depId = depMap.id,
                         dep = !hasProp(handlers, depId) && getDefer(depId);
@@ -994,7 +992,7 @@ var requirejs, require, define;
 
                 if (reqDefs.length) {
                     //Something is not resolved. Dive into it.
-                    eachProp(deferreds, function (d, id) {
+                    eachProp(deferreds, function (d) {
                         if (!d.finished()) {
                             noLoads.push(d);
                         }
@@ -1045,8 +1043,7 @@ var requirejs, require, define;
             }
             calledDefine[name] = true;
 
-            var depName, map,
-                d = getDefer(name);
+            var d = getDefer(name);
 
             //This module may not have dependencies
             if (deps && !Array.isArray(deps)) {
@@ -1148,7 +1145,8 @@ var requirejs, require, define;
 
             //Save off the paths and packages since they require special processing,
             //they are additive.
-            var pkgs = config.pkgs,
+            var primId,
+                pkgs = config.pkgs,
                 shim = config.shim,
                 objs = {
                     paths: true,
@@ -1211,6 +1209,12 @@ var requirejs, require, define;
 
                 //Done with modifications, assing packages back to context config
                 config.pkgs = pkgs;
+            }
+
+            //If want prim injected, inject it now.
+            primId = config.definePrim;
+            if (primId) {
+                waiting[primId] = [primId, [], function () { return prim; }];
             }
 
             //If a deps array or a config callback is specified, then call
