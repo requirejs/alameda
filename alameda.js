@@ -1,5 +1,5 @@
 /**
- * alameda 0.0.1 Copyright (c) 2011-2012, The Dojo Foundation All Rights Reserved.
+ * alameda 0.0.2 Copyright (c) 2011-2012, The Dojo Foundation All Rights Reserved.
  * Available via the MIT or new BSD license.
  * see: http://github.com/requirejs/alameda for details
  */
@@ -92,13 +92,15 @@ var requirejs, require, define;
      * - each() changed to Array.forEach
      * - removed UMD registration
      */
-
     /**
-     * prim 0.0.0 Copyright (c) 2012, The Dojo Foundation All Rights Reserved.
+     * prim 0.0.1 Copyright (c) 2012-2013, The Dojo Foundation All Rights Reserved.
      * Available via the MIT or new BSD license.
      * see: http://github.com/requirejs/prim for details
      */
+
+    /*global setImmediate, process, setTimeout */
     (function () {
+        'use strict';
         function check(p) {
             if (hasProp(p, 'e') || hasProp(p, 'v')) {
                 throw new Error('nope');
@@ -178,7 +180,9 @@ var requirejs, require, define;
 
                         p.callback(function (v) {
                             try {
-                                v = yes ? yes(v) : v;
+                                if (yes && typeof yes === 'function') {
+                                    v = yes(v);
+                                }
 
                                 if (v && v.then) {
                                     v.then(next.resolve, next.reject);
@@ -192,19 +196,15 @@ var requirejs, require, define;
                             var err;
 
                             try {
-                                if (!no) {
+                                if (!no || typeof no !== 'function') {
                                     next.reject(e);
                                 } else {
                                     err = no(e);
 
-                                    if (err instanceof Error) {
-                                        next.reject(err);
+                                    if (err && err.then) {
+                                        err.then(next.resolve, next.reject);
                                     } else {
-                                        if (err && err.then) {
-                                            err.then(next.resolve, next.reject);
-                                        } else {
-                                            next.resolve(err);
-                                        }
+                                        next.resolve(err);
                                     }
                                 }
                             } catch (e2) {
@@ -238,13 +238,14 @@ var requirejs, require, define;
             return result;
         };
 
-        prim.nextTick = typeof process !== 'undefined' && process.nextTick ?
+        prim.nextTick = typeof setImmediate === 'function' ? setImmediate :
+            (typeof process !== 'undefined' && process.nextTick ?
                 process.nextTick : (typeof setTimeout !== 'undefined' ?
                     function (fn) {
                     setTimeout(fn, 0);
                 } : function (fn) {
             fn();
-        });
+        }));
     }());
     //END prim
 
