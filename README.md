@@ -8,7 +8,9 @@ implementation changes:
 * Assumes browser support for Array.isArray, array extras, ES5 features.
 * Does not support a couple of less-used APIs (see tests section below)
 
-These changes means alameda is around 30% smaller than requirejs, 4148 bytes vs 6036 bytes, minified+gzipped sizes.
+These changes means alameda is around 30% smaller than requirejs, 4148 bytes vs 6036 bytes, minified+gzipped sizes. If you need a basic promise module, alameda comes with
+one that can be [injected as a module](#api), so in that case you also save some over
+size for your project.
 
 Browser support:
 
