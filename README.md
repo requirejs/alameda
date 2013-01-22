@@ -1,84 +1,87 @@
 #alameda
 
-::still under construction::
+An AMD loader, like [requirejs](http://requirejs.org), but with the following
+implementation changes:
 
-TODO: almond + dynamic loading, and only for modern browsers. Specifically, latest WebKit, Firefox, Opera and IE10+. So, PS3/NetFront probably out. Find the IE bug number.
+* Uses promises underneath, via [prim](https://github.com/requirejs/prim).
+* Targets "modern" web browsers that implement script.onload standardized behavior.
+* Assumes browser support for Array.isArray, array extras, ES5 features.
+* Does not support a couple of less-used APIs (see tests section below)
 
-Array.isArray, array extras, standards script loading, which for IE is IE10+
+These changes means alameda is around 30% smaller than requirejs, 4148 bytes vs 6036 bytes, minified+gzipped sizes.
 
-Not a complete thing, cannot be used by r.js for example, only runs
-in browser, not node, etc...
+Browser support:
 
-* Error reporting, but no error recovery
+* Firefox
+* Chrome
+* Safari
+* IE 10+
 
-* Test in other browsers.
+So, no IE 6-9, and probably not NetFront browsers, like the PS3. IE 9 had
+[a bug](http://connect.microsoft.com/IE/feedback/details/648057/script-onload-event-is-not-fired-immediately-after-script-execution)
+where onload did not follow script execution. That bug was fixed in IE 10. If that fix was backported to IE 9, then alameda would work in IE 9.
 
-## requirejs tests that do not pass
+You can continue to use requirejs and the r.js optimizer for other scenarios.
+The r.js optimizer works well with alameda-based projects.
 
-* multiversion: not supported yet
-* onResourceLoadNestedRequire: depends on implementing requirejs.onResourceLoad
-hook used for builds/some third party tools.
-and the plugin's load() method is not called.
-* None of the error/retries, no require.undef()
+## API
 
-Opted to also defined requirejs name to make passimg tests easier.
+alameda supports [the requirejs API](http://requirejs.org/docs/api.html). It even
+declares `requirejs`, to make passing the requirejs tests easier. alameda also
+has a good chance of becoming requirejs in a far-future requirejs version.
 
-see copy script - > rename alameda to requirejs?
-also assumes other projects in the requirejs github groups are checked
-out as siblings:
+One config option alameda exposes that is not part of the requirejs API is the
+`primId` config option. You have the option to inject alameda's private
+[prim](https://github.com/requirejs/prim) implementation as a module with the
+ID given in `primId`:
 
+```javascript
+require.config({
+    primId: 'prim'
+});
+
+require(['prim'], function (prim) {
+    // prim here is the prim version built
+    // in to alameda.js, no need to deliver
+    // a separate prim module.
+})
+```
+
+With prim, you get a basic [promises a+plus compliant](https://github.com/promises-aplus/promises-tests) implementation with .then() chaining.
+
+## Running tests
+
+The tests are pulled from almond and requirejs. All tests should be served
+through a local web server, as the text loader plugin is used for some tests,
+and some browsers restrict local XHR usage when the files are served from
+a `file://` URL.
+
+### Bundled tests
+
+To run the tests that are just part of this repo, open `tests/index.html` in
+a web browser.
+
+### requirejs tests
+
+To run the requirejs tests, first make sure the following projects have been cloned and are **siblings** to the the alameda repo:
+
+* https://github.com/jrburke/requirejs
 * https://github.com/requirejs/domReady
 * https://github.com/requirejs/text
 * https://github.com/requirejs/i18n
 
-## Things that could be considered optional
+Then do the following:
 
-* loader plugins
-* require.defined/specified
-* shim support
-* map support
-* packages support?
-* Web Worker support
-* contexts?
+* symlink alameda.js to require.js
+* ./copyrequirejstests.sh
 
-No undef, onResourceLoad before contexts:
+#### requirejs tests that do not pass
 
-* 3997 min.gz
-* 9270 min
-
-After contexts:
-
-* 4138 min.gz
-* 9523 min
-
-~~~
-
-Remove prim (assume byoa promises)
-
-* 3709 min.gz
-* 8260 min
-
-THEN REMOVE: shim/getGlobal, map, web workers/isBrowser, require.defined/specified:
-
-* 3298 min.gz
-* 7130 min
-
-THEN REMOVE: no plugins (map.pr, plugin, makeLoad)
-
-* 2970 min.gz
-* 6410 min
-
-~~~
-
-almond 0.2.1:
-
-* 1218 min.gz
-* 2480 min
-
-require.js 2.1.2:
-
-* 5994 min.gz
-* 14537 min
+* require.undef()-related tests.
+* onResourceLoadNestedRequire: depends on implementing requirejs.onResourceLoad
+hook used for builds/some third party tools. This API is not required for normal
+module loading. Use the [r.js optimizer](http://requirejs.org/docs/optimization.html)
+for tools that need this API.
 
 ## How to get help
 
