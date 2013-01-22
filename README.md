@@ -16,7 +16,7 @@ Browser support:
 
 * Firefox
 * Chrome
-* Safari
+* Safari, WebKits in iOS and Android
 * IE 10+
 
 So, no IE 6-9, and probably not NetFront browsers, like the PS3. IE 9 had
