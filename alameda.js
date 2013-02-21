@@ -6,7 +6,7 @@
 //Going sloppy to avoid 'use strict' string cost, but strict practices should
 //be followed.
 /*jslint sloppy: true, nomen: true, regexp: true */
-/*global setTimeout, process, document, navigator, importScripts */
+/*global document, navigator, importScripts, window */
 
 var requirejs, require, define;
 (function (global, undef) {
@@ -98,7 +98,6 @@ var requirejs, require, define;
      * see: http://github.com/requirejs/prim for details
      */
 
-    /*global setImmediate, process, setTimeout */
     (function () {
         'use strict';
         function check(p) {
@@ -238,14 +237,31 @@ var requirejs, require, define;
             return result;
         };
 
-        prim.nextTick = typeof setImmediate === 'function' ? setImmediate :
-            (typeof process !== 'undefined' && process.nextTick ?
-                process.nextTick : (typeof setTimeout !== 'undefined' ?
-                    function (fn) {
-                    setTimeout(fn, 0);
-                } : function (fn) {
-            fn();
-        }));
+
+        var timeouts = [];
+        var messageName = "zero-timeout-message";
+
+        // Like setTimeout, but only takes a function argument.  There's
+        // no time argument (always zero) and no arguments (you have to
+        // use a closure).
+        function setZeroTimeout(fn) {
+          timeouts.push(fn);
+          window.postMessage(messageName, "*");
+        }
+
+        function handleMessage(event) {
+          if (event.source == window && event.data == messageName) {
+            event.stopPropagation();
+            if (timeouts.length > 0) {
+              var fn = timeouts.shift();
+              fn();
+            }
+          }
+        }
+
+        window.addEventListener("message", handleMessage, true);
+
+        prim.nextTick = setZeroTimeout;
     }());
     //END prim
 
@@ -798,7 +814,7 @@ var requirejs, require, define;
                             d.map = makeMap(id);
                             load(d.map);
                         } else {
-                            err = new Error('Load failed: ' + id);
+                            err = new Error('Load failed: ' + id + ': ' + script.url);
                             err.requireModules = [id];
                             getDefer(id).reject(err);
                         }
