@@ -1,5 +1,5 @@
 /**
- * alameda 0.0.2 Copyright (c) 2011-2012, The Dojo Foundation All Rights Reserved.
+ * alameda 0.0.3 Copyright (c) 2011-2012, The Dojo Foundation All Rights Reserved.
  * Available via the MIT or new BSD license.
  * see: http://github.com/requirejs/alameda for details
  */
@@ -93,7 +93,7 @@ var requirejs, require, define;
      * - removed UMD registration
      */
     /**
-     * prim 0.0.1 Copyright (c) 2012-2013, The Dojo Foundation All Rights Reserved.
+     * prim 0.0.2 Copyright (c) 2012-2013, The Dojo Foundation All Rights Reserved.
      * Available via the MIT or new BSD license.
      * see: http://github.com/requirejs/prim for details
      */
@@ -101,11 +101,30 @@ var requirejs, require, define;
     /*global setImmediate, process, setTimeout */
     (function () {
         'use strict';
+        var waitingId,
+            waiting = [];
+
         function check(p) {
             if (hasProp(p, 'e') || hasProp(p, 'v')) {
                 throw new Error('nope');
             }
             return true;
+        }
+
+        function callWaiting() {
+            waitingId = 0;
+            var w = waiting;
+            waiting = [];
+            while (w.length) {
+                w.shift()();
+            }
+        }
+
+        function asyncTick(fn) {
+            waiting.push(fn);
+            if (!waitingId) {
+                waitingId = setTimeout(callWaiting, 0);
+            }
         }
 
         function notify(ary, value) {
@@ -184,7 +203,7 @@ var requirejs, require, define;
                                     v = yes(v);
                                 }
 
-                                if (v && v.then) {
+                                if (v && typeof v.then === 'function') {
                                     v.then(next.resolve, next.reject);
                                 } else {
                                     next.resolve(v);
@@ -201,7 +220,7 @@ var requirejs, require, define;
                                 } else {
                                     err = no(e);
 
-                                    if (err && err.then) {
+                                    if (err && typeof err.then === 'function') {
                                         err.then(next.resolve, next.reject);
                                     } else {
                                         next.resolve(err);
@@ -241,9 +260,7 @@ var requirejs, require, define;
         prim.nextTick = typeof setImmediate === 'function' ? setImmediate :
             (typeof process !== 'undefined' && process.nextTick ?
                 process.nextTick : (typeof setTimeout !== 'undefined' ?
-                    function (fn) {
-                    setTimeout(fn, 0);
-                } : function (fn) {
+                    asyncTick : function (fn) {
             fn();
         }));
     }());
@@ -798,7 +815,7 @@ var requirejs, require, define;
                             d.map = makeMap(id);
                             load(d.map);
                         } else {
-                            err = new Error('Load failed: ' + id);
+                            err = new Error('Load failed: ' + id + ': ' + script.url);
                             err.requireModules = [id];
                             getDefer(id).reject(err);
                         }
