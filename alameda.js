@@ -1,5 +1,5 @@
 /**
- * alameda 0.0.3 Copyright (c) 2011-2012, The Dojo Foundation All Rights Reserved.
+ * alameda 0.0.3+ Copyright (c) 2011-2012, The Dojo Foundation All Rights Reserved.
  * Available via the MIT or new BSD license.
  * see: http://github.com/requirejs/alameda for details
  */
@@ -271,12 +271,14 @@ var requirejs, require, define;
             defined = {},
             waiting = {},
             config = {
+                //Defaults. Do not set a default for map
+                //config to speed up normalize(), which
+                //will run faster if there is no default.
                 waitSeconds: 7,
                 baseUrl: './',
                 paths: {},
                 pkgs: {},
                 shim: {},
-                map: {},
                 config: {}
             },
             requireDeferreds = [],
@@ -1175,6 +1177,9 @@ var requirejs, require, define;
             eachProp(cfg, function (value, prop) {
                 if (objs[prop]) {
                     if (prop === 'map') {
+                        if (!config.map) {
+                            config.map = {};
+                        }
                         mixin(config[prop], value, true, true);
                     } else {
                         mixin(config[prop], value, true);
