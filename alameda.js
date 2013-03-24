@@ -1050,7 +1050,7 @@ var requirejs, require, define;
                 });
                 err = new Error('Timeout for modules: ' + noLoads);
                 err.requireModules = noLoads;
-                throw err;
+                req.onError(err);
             } else if (loadCount || reqDefs.length) {
                 //Something is still waiting to load. Wait for it, but only
                 //if a timeout is not already in effect.
