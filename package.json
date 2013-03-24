@@ -1,7 +1,7 @@
 {
     "name": "alameda",
     "description": "AMD loader, like requirejs, but with promises and for modern browsers",
-    "version": "0.0.2",
+    "version": "0.0.4",
     "homepage": "http://github.com/requirejs/alameda",
     "author": "James Burke <jrburke@gmail.com> (http://github.com/jrburke)",
     "licenses": [
