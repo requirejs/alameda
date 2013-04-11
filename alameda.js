@@ -1,5 +1,5 @@
 /**
- * alameda 0.0.4 Copyright (c) 2011-2012, The Dojo Foundation All Rights Reserved.
+ * alameda 0.0.5 Copyright (c) 2011-2012, The Dojo Foundation All Rights Reserved.
  * Available via the MIT or new BSD license.
  * see: http://github.com/requirejs/alameda for details
  */
@@ -93,7 +93,7 @@ var requirejs, require, define;
      * - removed UMD registration
      */
     /**
-     * prim 0.0.2 Copyright (c) 2012-2013, The Dojo Foundation All Rights Reserved.
+     * prim 0.0.3 Copyright (c) 2012-2013, The Dojo Foundation All Rights Reserved.
      * Available via the MIT or new BSD license.
      * see: http://github.com/requirejs/prim for details
      */
@@ -127,6 +127,10 @@ var requirejs, require, define;
             }
         }
 
+        function syncTick(fn) {
+            fn();
+        }
+
         function notify(ary, value) {
             prim.nextTick(function () {
                 ary.forEach(function (item) {
@@ -135,10 +139,11 @@ var requirejs, require, define;
             });
         }
 
-        prim = function prim() {
+        prim = function prim(options) {
             var p,
                 ok = [],
-                fail = [];
+                fail = [],
+                nextTick = options && options.sync ? syncTick : prim.nextTick;
 
             return (p = {
                 callback: function (yes, no) {
@@ -147,7 +152,7 @@ var requirejs, require, define;
                     }
 
                     if (hasProp(p, 'v')) {
-                        prim.nextTick(function () {
+                        nextTick(function () {
                             yes(p.v);
                         });
                     } else {
@@ -157,7 +162,7 @@ var requirejs, require, define;
 
                 errback: function (no) {
                     if (hasProp(p, 'e')) {
-                        prim.nextTick(function () {
+                        nextTick(function () {
                             no(p.e);
                         });
                     } else {
@@ -195,7 +200,7 @@ var requirejs, require, define;
 
                 promise: {
                     then: function (yes, no) {
-                        var next = prim();
+                        var next = prim(options);
 
                         p.callback(function (v) {
                             try {
@@ -246,7 +251,6 @@ var requirejs, require, define;
                 }
             });
         };
-
         prim.serial = function (ary) {
             var result = prim().resolve().promise;
             ary.forEach(function (item) {
@@ -260,9 +264,7 @@ var requirejs, require, define;
         prim.nextTick = typeof setImmediate === 'function' ? setImmediate :
             (typeof process !== 'undefined' && process.nextTick ?
                 process.nextTick : (typeof setTimeout !== 'undefined' ?
-                    asyncTick : function (fn) {
-            fn();
-        }));
+                    asyncTick : syncTick));
     }());
     //END prim
 
@@ -650,10 +652,8 @@ var requirejs, require, define;
                 } else if (ret === undef && d.usingExports) {
                     ret = defined[name];
                 }
-                resolve(name, d, ret);
-            } else {
-                d.resolve();
             }
+            resolve(name, d, ret);
         }
 
         //This method is attached to every module deferred,
@@ -663,14 +663,16 @@ var requirejs, require, define;
                 this.depDefined[i] = true;
                 this.depCount += 1;
                 this.values[i] = val;
-                if (this.depCount === this.depMax) {
+                if (!this.depending && this.depCount === this.depMax) {
                     defineModule(this);
                 }
             }
         }
 
         function makeDefer(name) {
-            var d = prim();
+            var d = prim({
+                sync: !!name
+            });
             d.map = name ? makeMap(name, null, true) : {};
             d.depCount = 0;
             d.depMax = 0;
@@ -1121,6 +1123,7 @@ var requirejs, require, define;
                 d.factory = factory;
                 d.deps = deps;
 
+                d.depending = true;
                 deps.forEach(function (depName, i) {
                     var depMap;
                     deps[i] = depMap = makeMap(depName, relName, true);
@@ -1140,6 +1143,7 @@ var requirejs, require, define;
                         waitForDep(depMap, relName, d, i);
                     }
                 });
+                d.depending = false;
 
                 //Some modules just depend on the require, exports, modules, so
                 //trigger their definition here if so.
