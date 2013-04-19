@@ -1,5 +1,5 @@
 /**
- * alameda 0.0.5 Copyright (c) 2011-2012, The Dojo Foundation All Rights Reserved.
+ * alameda 0.0.6 Copyright (c) 2011-2012, The Dojo Foundation All Rights Reserved.
  * Available via the MIT or new BSD license.
  * see: http://github.com/requirejs/alameda for details
  */
@@ -269,7 +269,7 @@ var requirejs, require, define;
     //END prim
 
     function newContext(contextName) {
-        var req, main, makeMap, callDep, handlers, loadTimeId, load, context,
+        var req, main, makeMap, callDep, handlers, checkingLater, load, context,
             defined = {},
             waiting = {},
             config = {
@@ -283,6 +283,7 @@ var requirejs, require, define;
                 shim: {},
                 config: {}
             },
+            mapCache = {},
             requireDeferreds = [],
             deferreds = {},
             calledDefine = {},
@@ -652,6 +653,11 @@ var requirejs, require, define;
                 } else if (ret === undef && d.usingExports) {
                     ret = defined[name];
                 }
+            } else {
+                //Remove the require deferred from the list to
+                //make cycle searching faster. Do not need to track
+                //it anymore either.
+                requireDeferreds.splice(requireDeferreds.indexOf(d), 1);
             }
             resolve(name, d, ret);
         }
@@ -914,11 +920,16 @@ var requirejs, require, define;
                 return name;
             }
 
-            var plugin, url,
-                parts = splitPrefix(name),
-                prefix = parts[0];
+            var plugin, url, parts, prefix, result,
+                cacheKey = name + ' & ' + (relName || '') + ' & ' + !!applyMap;
 
+            parts = splitPrefix(name);
+            prefix = parts[0];
             name = parts[1];
+
+            if (!prefix && hasProp(mapCache, cacheKey)) {
+                return mapCache[cacheKey];
+            }
 
             if (prefix) {
                 prefix = normalize(prefix, relName, applyMap);
@@ -942,12 +953,18 @@ var requirejs, require, define;
             }
 
             //Using ridiculous property names for space reasons
-            return {
+            result = {
                 id: prefix ? prefix + '!' + name : name, //fullName
                 n: name,
                 pr: prefix,
                 url: url
             };
+
+            if (!prefix) {
+                mapCache[cacheKey] = result;
+            }
+
+            return result;
         };
 
         function makeConfig(name) {
@@ -1010,35 +1027,26 @@ var requirejs, require, define;
             processed[id] = true;
         }
 
-        function check() {
-            loadTimeId = 0;
-
+        function check(d) {
             var err,
-                reqDefs = [],
-                noLoads = [],
+                notFinished = [],
                 waitInterval = config.waitSeconds * 1000,
                 //It is possible to disable the wait interval by using waitSeconds of 0.
                 expired = waitInterval && (startTime + waitInterval) < (new Date()).getTime();
 
             if (loadCount === 0) {
-                reqDefs = requireDeferreds.filter(function (d) {
-                    //Only want deferreds that have not finished.
-                    return !d.finished();
-                });
-
-                if (reqDefs.length) {
-                    //Something is not resolved. Dive into it.
-                    eachProp(deferreds, function (d) {
-                        if (!d.finished()) {
-                            noLoads.push(d);
-                        }
-                    });
-
-                    if (noLoads.length) {
-                        reqDefs.forEach(function (d) {
-                            breakCycle(d, {}, {});
-                        });
+                //If passed in a deferred, it is for a specific require call.
+                //Could be a sync case that needs resolution right away.
+                //Otherwise, if no deferred, means a nextTick and all
+                //waiting require deferreds should be checked.
+                if (d) {
+                    if (!d.finished()) {
+                        breakCycle(d, {}, {});
                     }
+                } else if (requireDeferreds.length) {
+                    requireDeferreds.forEach(function (d) {
+                        breakCycle(d, {}, {});
+                    });
                 }
             }
 
@@ -1047,17 +1055,23 @@ var requirejs, require, define;
             //scripts, then just try back later.
             if (expired) {
                 //If wait time expired, throw error of unloaded modules.
-                noLoads = noLoads.map(function (d) {
-                    return d.map.id;
+                eachProp(deferreds, function (d) {
+                    if (!d.finished()) {
+                        notFinished.push(d.map.id);
+                    }
                 });
-                err = new Error('Timeout for modules: ' + noLoads);
-                err.requireModules = noLoads;
+                err = new Error('Timeout for modules: ' + notFinished);
+                err.requireModules = notFinished;
                 req.onError(err);
-            } else if (loadCount || reqDefs.length) {
+            } else if (loadCount || requireDeferreds.length) {
                 //Something is still waiting to load. Wait for it, but only
-                //if a timeout is not already in effect.
-                if (!loadTimeId) {
-                    loadTimeId = prim.nextTick(check);
+                //if a later check is not already scheduled.
+                if (!checkingLater) {
+                    checkingLater = true;
+                    prim.nextTick(function () {
+                        checkingLater = false;
+                        check();
+                    });
                 }
             }
         }
@@ -1159,7 +1173,7 @@ var requirejs, require, define;
             startTime = (new Date()).getTime();
 
             if (!name) {
-                check();
+                check(d);
             }
         };
 
@@ -1173,6 +1187,9 @@ var requirejs, require, define;
             if (cfg.context && cfg.context !== contextName) {
                 return newContext(cfg.context).config(cfg);
             }
+
+            //Since config changed, mapCache may not be valid any more.
+            mapCache = {};
 
             //Make sure the baseUrl ends in a slash.
             if (cfg.baseUrl) {
