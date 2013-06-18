@@ -1,5 +1,5 @@
 /**
- * alameda 0.0.6 Copyright (c) 2011-2012, The Dojo Foundation All Rights Reserved.
+ * alameda 0.0.7 Copyright (c) 2011-2012, The Dojo Foundation All Rights Reserved.
  * Available via the MIT or new BSD license.
  * see: http://github.com/requirejs/alameda for details
  */
@@ -93,7 +93,7 @@ var requirejs, require, define;
      * - removed UMD registration
      */
     /**
-     * prim 0.0.3 Copyright (c) 2012-2013, The Dojo Foundation All Rights Reserved.
+     * prim 0.0.4 Copyright (c) 2012-2013, The Dojo Foundation All Rights Reserved.
      * Available via the MIT or new BSD license.
      * see: http://github.com/requirejs/prim for details
      */
@@ -261,7 +261,7 @@ var requirejs, require, define;
             return result;
         };
 
-        prim.nextTick = typeof setImmediate === 'function' ? setImmediate :
+        prim.nextTick = typeof setImmediate === 'function' ? setImmediate.bind() :
             (typeof process !== 'undefined' && process.nextTick ?
                 process.nextTick : (typeof setTimeout !== 'undefined' ?
                     asyncTick : syncTick));
