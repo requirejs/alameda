@@ -1,5 +1,5 @@
 /**
- * alameda 0.0.7 Copyright (c) 2011-2012, The Dojo Foundation All Rights Reserved.
+ * alameda 0.0.7+ Copyright (c) 2011-2012, The Dojo Foundation All Rights Reserved.
  * Available via the MIT or new BSD license.
  * see: http://github.com/requirejs/alameda for details
  */
@@ -839,7 +839,7 @@ var requirejs, require, define;
                             d.map = makeMap(id);
                             load(d.map);
                         } else {
-                            err = new Error('Load failed: ' + id + ': ' + script.url);
+                            err = new Error('Load failed: ' + id + ': ' + script.src);
                             err.requireModules = [id];
                             getDefer(id).reject(err);
                         }
