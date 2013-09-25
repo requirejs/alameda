@@ -1,5 +1,5 @@
 /**
- * alameda 0.0.7+ Copyright (c) 2011-2012, The Dojo Foundation All Rights Reserved.
+ * alameda 0.0.8 Copyright (c) 2011-2012, The Dojo Foundation All Rights Reserved.
  * Available via the MIT or new BSD license.
  * see: http://github.com/requirejs/alameda for details
  */
