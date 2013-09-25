@@ -10,7 +10,7 @@
 
 var requirejs, require, define;
 (function (global, undef) {
-    var prim, topReq, dataMain,
+    var prim, topReq, dataMain, src, subPath,
         bootstrapConfig = requirejs || require,
         hasOwn = Object.prototype.hasOwnProperty,
         contexts = {},
@@ -1341,6 +1341,17 @@ var requirejs, require, define;
             //Strip off any trailing .js since dataMain is now
             //like a module name.
             dataMain = dataMain.replace(jsSuffixRegExp, '');
+
+            if (!bootstrapConfig || !bootstrapConfig.baseUrl) {
+                //Pull off the directory of data-main for use as the
+                //baseUrl.
+                src = dataMain.split('/');
+                dataMain = src.pop();
+                subPath = src.length ? src.join('/')  + '/' : './';
+
+                topReq.config({baseUrl: subPath});
+            }
+
             topReq([dataMain]);
         }
     }
