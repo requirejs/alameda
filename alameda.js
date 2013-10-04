@@ -1,5 +1,5 @@
 /**
- * alameda 0.0.8 Copyright (c) 2011-2012, The Dojo Foundation All Rights Reserved.
+ * alameda 0.0.9 Copyright (c) 2011-2012, The Dojo Foundation All Rights Reserved.
  * Available via the MIT or new BSD license.
  * see: http://github.com/requirejs/alameda for details
  */
@@ -1001,8 +1001,7 @@ var requirejs, require, define;
             traced[id] = true;
             if (!d.finished() && d.deps) {
                 d.deps.forEach(function (depMap) {
-                    var depIndex,
-                        depId = depMap.id,
+                    var depId = depMap.id,
                         dep = !hasProp(handlers, depId) && getDefer(depId);
 
                     //Only force things that have not completed
@@ -1011,13 +1010,11 @@ var requirejs, require, define;
                     //in the module already.
                     if (dep && !dep.finished() && !processed[depId]) {
                         if (hasProp(traced, depId)) {
-                            d.deps.some(function (depMap, i) {
+                            d.deps.forEach(function (depMap, i) {
                                 if (depMap.id === depId) {
-                                    depIndex = i;
-                                    return true;
+                                    d.depFinished(defined[depId], i);
                                 }
                             });
-                            d.depFinished(defined[depId], depIndex);
                         } else {
                             breakCycle(dep, traced, processed);
                         }
