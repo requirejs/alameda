@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>alameda: Empty Require Test</title>
+    <script src="../doh/runner.js"></script>
+    <script src="../doh/_browserRunner.js"></script>
+    <script src="../../alameda.js"></script>
+    <script>
+        require([], function () {
+            doh.register(
+                'emptyRequire',
+                [
+                    function emptyRequire(t){
+                        t.is(true, true);
+                    }
+                ]
+            );
+            doh.run();
+        });
+    </script>
+</head>
+<body>
+    <h1>alameda: Empty Require Test</h1>
+    <p>Empty require array should still call callback.
+        <a href="https://github.com/requirejs/alameda/issues/5">More info</a></p>
+    <p>Check console for messages</p>
+</body>
+</html>
