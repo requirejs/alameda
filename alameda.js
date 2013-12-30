@@ -824,8 +824,8 @@ var requirejs, require, define;
                 try {
                     req.exec(text);
                 } catch (e) {
-                    throw new Error('fromText eval for ' + plainId +
-                                    ' failed: ' + e);
+                    reject(d, new Error('fromText eval for ' + plainId +
+                                    ' failed: ' + e));
                 }
 
                 //Execute any waiting define created by the plainId
