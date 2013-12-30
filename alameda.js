@@ -1,12 +1,13 @@
 /**
- * alameda 0.1.0 Copyright (c) 2011-2012, The Dojo Foundation All Rights Reserved.
+ * alameda 0.1.0+ Copyright (c) 2011-2012, The Dojo Foundation All Rights Reserved.
  * Available via the MIT or new BSD license.
  * see: http://github.com/requirejs/alameda for details
  */
 //Going sloppy to avoid 'use strict' string cost, but strict practices should
 //be followed.
 /*jslint sloppy: true, nomen: true, regexp: true */
-/*global setTimeout, process, document, navigator, importScripts */
+/*global setTimeout, process, document, navigator, importScripts,
+  setImmediate */
 
 var requirejs, require, define;
 (function (global, undef) {
@@ -84,39 +85,24 @@ var requirejs, require, define;
         return g;
     }
 
-    //START prim
+    //START prim 0.0.5
     /**
      * Changes from baseline prim
-     * - no hasProp or hasOwn (already defined in this file)
-     * - no hideResolutionConflict, want early errors, trusted code.
-     * - each() changed to Array.forEach
      * - removed UMD registration
      */
-    /**
-     * prim 0.0.4 Copyright (c) 2012-2013, The Dojo Foundation All Rights Reserved.
-     * Available via the MIT or new BSD license.
-     * see: http://github.com/requirejs/prim for details
-     */
-
-    /*global setImmediate, process, setTimeout */
     (function () {
         'use strict';
-        var waitingId,
-            waiting = [];
 
-        function check(p) {
-            if (hasProp(p, 'e') || hasProp(p, 'v')) {
-                throw new Error('nope');
-            }
-            return true;
-        }
+        var waitingId, nextTick,
+            waiting = [];
 
         function callWaiting() {
-            waitingId = 0;
-            var w = waiting;
-            waiting = [];
-            while (w.length) {
-                w.shift()();
+            try {
+                while (waiting.length) {
+                    waiting.shift()();
+                }
+            } finally {
+                waitingId = 0;
             }
         }
 
@@ -131,6 +117,19 @@ var requirejs, require, define;
             fn();
         }
 
+        function isFunObj(x) {
+            var type = typeof x;
+            return type === 'object' || type === 'function';
+        }
+
+        //Use setImmediate.bind() because attaching it (or setTimeout directly
+        //to prim will result in errors. Noticed first on IE10,
+        //issue requirejs/alameda#2)
+        nextTick = typeof setImmediate === 'function' ? setImmediate.bind() :
+            (typeof process !== 'undefined' && process.nextTick ?
+                process.nextTick : (typeof setTimeout !== 'undefined' ?
+                    asyncTick : syncTick));
+
         function notify(ary, value) {
             prim.nextTick(function () {
                 ary.forEach(function (item) {
@@ -139,132 +138,168 @@ var requirejs, require, define;
             });
         }
 
-        prim = function prim(options) {
-            var p,
+        function callback(p, ok, yes) {
+            if (p.hasOwnProperty('v')) {
+                prim.nextTick(function () {
+                    yes(p.v);
+                });
+            } else {
+                ok.push(yes);
+            }
+        }
+
+        function errback(p, fail, no) {
+            if (p.hasOwnProperty('e')) {
+                prim.nextTick(function () {
+                    no(p.e);
+                });
+            } else {
+                fail.push(no);
+            }
+        }
+
+        prim = function prim(fn) {
+            var promise, f,
+                p = {},
                 ok = [],
-                fail = [],
-                nextTick = options && options.sync ? syncTick : prim.nextTick;
+                fail = [];
 
-            return (p = {
-                callback: function (yes, no) {
-                    if (no) {
-                        p.errback(no);
+            function makeFulfill() {
+                var f, f2,
+                    called = false;
+
+                function fulfill(v, prop, listeners) {
+                    if (called) {
+                        return;
+                    }
+                    called = true;
+
+                    if (promise === v) {
+                        called = false;
+                        f.reject(new TypeError('value is same promise'));
+                        return;
                     }
 
-                    if (hasProp(p, 'v')) {
-                        nextTick(function () {
-                            yes(p.v);
-                        });
-                    } else {
-                        ok.push(yes);
-                    }
-                },
-
-                errback: function (no) {
-                    if (hasProp(p, 'e')) {
-                        nextTick(function () {
-                            no(p.e);
-                        });
-                    } else {
-                        fail.push(no);
-                    }
-                },
-
-                finished: function () {
-                    return hasProp(p, 'e') || hasProp(p, 'v');
-                },
-
-                rejected: function () {
-                    return hasProp(p, 'e');
-                },
-
-                resolve: function (v) {
-                    if (check(p)) {
-                        p.v = v;
-                        notify(ok, v);
-                    }
-                    return p;
-                },
-                reject: function (e) {
-                    if (check(p)) {
-                        p.e = e;
-                        notify(fail, e);
-                    }
-                    return p;
-                },
-
-                start: function (fn) {
-                    p.resolve();
-                    return p.promise.then(fn);
-                },
-
-                promise: {
-                    then: function (yes, no) {
-                        var next = prim(options);
-
-                        p.callback(function (v) {
-                            try {
-                                if (yes && typeof yes === 'function') {
-                                    v = yes(v);
-                                }
-
-                                if (v && typeof v.then === 'function') {
-                                    v.then(next.resolve, next.reject);
-                                } else {
-                                    next.resolve(v);
-                                }
-                            } catch (e) {
-                                next.reject(e);
-                            }
-                        }, function (e) {
-                            var err;
-
-                            try {
-                                if (!no || typeof no !== 'function') {
-                                    next.reject(e);
-                                } else {
-                                    err = no(e);
-
-                                    if (err && typeof err.then === 'function') {
-                                        err.then(next.resolve, next.reject);
-                                    } else {
-                                        next.resolve(err);
-                                    }
-                                }
-                            } catch (e2) {
-                                next.reject(e2);
-                            }
-                        });
-
-                        return next.promise;
-                    },
-
-                    fail: function (no) {
-                        return p.promise.then(null, no);
-                    },
-
-                    end: function () {
-                        p.errback(function (e) {
-                            throw e;
-                        });
+                    try {
+                        var then = v && v.then;
+                        if (isFunObj(v) && typeof then === 'function') {
+                            f2 = makeFulfill();
+                            then.call(v, f2.resolve, f2.reject);
+                        } else {
+                            p[prop] = v;
+                            notify(listeners, v);
+                        }
+                    } catch (e) {
+                        called = false;
+                        f.reject(e);
                     }
                 }
-            });
-        };
-        prim.serial = function (ary) {
-            var result = prim().resolve().promise;
-            ary.forEach(function (item) {
-                result = result.then(function () {
-                    return item();
-                });
-            });
-            return result;
+
+                f = {
+                    resolve: function (v) {
+                        fulfill(v, 'v', ok);
+                    },
+                    reject: function(e) {
+                        fulfill(e, 'e', fail);
+                    }
+                };
+                return f;
+            }
+
+            f = makeFulfill();
+
+            promise = {
+                then: function (yes, no) {
+                    var next = prim(function (nextResolve, nextReject) {
+
+                        function finish(fn, nextFn, v) {
+                            try {
+                                if (fn && typeof fn === 'function') {
+                                    v = fn(v);
+                                    nextResolve(v);
+                                } else {
+                                    nextFn(v);
+                                }
+                            } catch (e) {
+                                nextReject(e);
+                            }
+                        }
+
+                        callback(p, ok, finish.bind(undefined, yes, nextResolve));
+                        errback(p, fail, finish.bind(undefined, no, nextReject));
+
+                    });
+                    return next;
+                },
+
+                catch: function (no) {
+                    return promise.then(null, no);
+                }
+            };
+
+            try {
+                fn(f.resolve, f.reject);
+            } catch (e) {
+                f.reject(e);
+            }
+
+            return promise;
         };
 
-        prim.nextTick = typeof setImmediate === 'function' ? setImmediate.bind() :
-            (typeof process !== 'undefined' && process.nextTick ?
-                process.nextTick : (typeof setTimeout !== 'undefined' ?
-                    asyncTick : syncTick));
+        prim.resolve = function (value) {
+            return prim(function (yes) {
+                yes(value);
+            });
+        };
+
+        prim.reject = function (err) {
+            return prim(function (yes, no) {
+                no(err);
+            });
+        };
+
+        prim.cast = function (x) {
+            // A bit of a weak check, want "then" to be a function,
+            // but also do not want to trigger a getter if accessing
+            // it. Good enough for now.
+            if (isFunObj(x) && 'then' in x) {
+                return x;
+            } else {
+                return prim(function (yes, no) {
+                    if (x instanceof Error) {
+                        no(x);
+                    } else {
+                        yes(x);
+                    }
+                });
+            }
+        };
+
+        prim.all = function (ary) {
+            return prim(function (yes, no) {
+                var count = 0,
+                    length = ary.length,
+                    result = [];
+
+                function resolved(i, v) {
+                    result[i] = v;
+                    count += 1;
+                    if (count === length) {
+                        yes(result);
+                    }
+                }
+
+                ary.forEach(function (item, i) {
+                    prim.cast(item).then(function (v) {
+                        resolved(i, v);
+                    }, function (err) {
+                        no(err);
+                    });
+                });
+            });
+        };
+
+        prim.nextTick = nextTick;
     }());
     //END prim
 
@@ -629,7 +664,14 @@ var requirejs, require, define;
             if (name) {
                 defined[name] = value;
             }
+            d.finished = true;
             d.resolve(value);
+        }
+
+        function reject(d, err) {
+            d.finished = true;
+            d.rejected = true;
+            d.reject(err);
         }
 
         function makeNormalize(relName) {
@@ -665,7 +707,7 @@ var requirejs, require, define;
         //This method is attached to every module deferred,
         //so the "this" in here is the module deferred object.
         function depFinished(val, i) {
-            if (!this.rejected() && !this.depDefined[i]) {
+            if (!this.rejected && !this.depDefined[i]) {
                 this.depDefined[i] = true;
                 this.depCount += 1;
                 this.values[i] = val;
@@ -676,8 +718,10 @@ var requirejs, require, define;
         }
 
         function makeDefer(name) {
-            var d = prim({
-                sync: !!name
+            var d = {};
+            d.promise = prim(function (resolve, reject) {
+                d.resolve = resolve;
+                d.reject = reject;
             });
             d.map = name ? makeMap(name, null, true) : {};
             d.depCount = 0;
@@ -710,12 +754,12 @@ var requirejs, require, define;
 
         function makeErrback(d, name) {
             return function (err) {
-                if (!d.rejected()) {
+                if (!d.rejected) {
                     if (!err.dynaId) {
                         err.dynaId = 'id' + (errCount += 1);
                         err.requireModules = [name];
                     }
-                    d.reject(err);
+                    reject(d, err);
                 }
             };
         }
@@ -727,7 +771,7 @@ var requirejs, require, define;
             //in the then callback execution.
             callDep(depMap, relName).then(function (val) {
                 d.depFinished(val, i);
-            }, makeErrback(d, depMap.id)).fail(makeErrback(d, d.map.id));
+            }, makeErrback(d, depMap.id)).catch(makeErrback(d, d.map.id));
         }
 
         function makeLoad(id) {
@@ -999,7 +1043,7 @@ var requirejs, require, define;
             var id = d.map.id;
 
             traced[id] = true;
-            if (!d.finished() && d.deps) {
+            if (!d.finished && d.deps) {
                 d.deps.forEach(function (depMap) {
                     var depId = depMap.id,
                         dep = !hasProp(handlers, depId) && getDefer(depId);
@@ -1008,7 +1052,7 @@ var requirejs, require, define;
                     //being defined, so still in the registry,
                     //and only if it has not been matched up
                     //in the module already.
-                    if (dep && !dep.finished() && !processed[depId]) {
+                    if (dep && !dep.finished && !processed[depId]) {
                         if (hasProp(traced, depId)) {
                             d.deps.forEach(function (depMap, i) {
                                 if (depMap.id === depId) {
@@ -1037,7 +1081,7 @@ var requirejs, require, define;
                 //Otherwise, if no deferred, means a nextTick and all
                 //waiting require deferreds should be checked.
                 if (d) {
-                    if (!d.finished()) {
+                    if (!d.finished) {
                         breakCycle(d, {}, {});
                     }
                 } else if (requireDeferreds.length) {
@@ -1053,7 +1097,7 @@ var requirejs, require, define;
             if (expired) {
                 //If wait time expired, throw error of unloaded modules.
                 eachProp(deferreds, function (d) {
-                    if (!d.finished()) {
+                    if (!d.finished) {
                         notFinished.push(d.map.id);
                     }
                 });
@@ -1101,7 +1145,7 @@ var requirejs, require, define;
                 deps = [];
             }
 
-            d.promise.fail(errback || delayedError);
+            d.promise.catch(errback || delayedError);
 
             //Use name if no relName
             relName = relName || name;
