@@ -85,7 +85,7 @@ var requirejs, require, define;
         return g;
     }
 
-    //START prim 0.0.5
+    //START prim 0.0.6
     /**
      * Changes from baseline prim
      * - removed UMD registration
@@ -97,12 +97,11 @@ var requirejs, require, define;
             waiting = [];
 
         function callWaiting() {
-            try {
-                while (waiting.length) {
-                    waiting.shift()();
-                }
-            } finally {
-                waitingId = 0;
+            waitingId = 0;
+            var w = waiting;
+            waiting = [];
+            while (w.length) {
+                w.shift()();
             }
         }
 
