@@ -1016,7 +1016,13 @@ var requirejs, require, define;
 
         function makeConfig(name) {
             return function () {
-                return config.config[name] || {};
+                var c,
+                    pkg = getOwn(config.pkgs, name);
+                // For packages, only support config targeted
+                // at the main module.
+                c = pkg ? getOwn(config.config, name + '/' + pkg.main) :
+                          getOwn(config.config, name);
+                return  c || {};
             };
         }
 
