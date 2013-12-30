@@ -666,6 +666,9 @@ var requirejs, require, define;
         function resolve(name, d, value) {
             if (name) {
                 defined[name] = value;
+                if (requirejs.onResourceLoad) {
+                    requirejs.onResourceLoad(context, d.map, d.deps);
+                }
             }
             d.finished = true;
             d.resolve(value);
