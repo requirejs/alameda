@@ -572,7 +572,7 @@ var requirejs, require, define;
             req.isBrowser = typeof document !== 'undefined' &&
                 typeof navigator !== 'undefined';
 
-            req.nameToUrl = function (moduleName, ext) {
+            req.nameToUrl = function (moduleName, ext, skipExt) {
                 var paths, pkgs, pkg, pkgPath, syms, i, parentModule, url,
                     parentPath;
 
@@ -621,7 +621,7 @@ var requirejs, require, define;
 
                     //Join the path parts together, then figure out if baseUrl is needed.
                     url = syms.join('/');
-                    url += (ext || (/\?/.test(url) ? '' : '.js'));
+                    url += (ext || (/^data\:|\?/.test(url) || skipExt ? '' : '.js'));
                     url = (url.charAt(0) === '/' || url.match(/^[\w\+\.\-]+:/) ? '' : config.baseUrl) + url;
                 }
 
@@ -636,15 +636,19 @@ var requirejs, require, define;
              * plain URLs like nameToUrl.
              */
             req.toUrl = function (moduleNamePlusExt) {
-                var index = moduleNamePlusExt.lastIndexOf('.'),
-                    ext = null;
+                var ext,
+                    index = moduleNamePlusExt.lastIndexOf('.'),
+                    segment = moduleNamePlusExt.split('/')[0],
+                    isRelative = segment === '.' || segment === '..';
 
-                if (index !== -1) {
+                //Have a file extension alias, and it is not the
+                //dots from a relative path.
+                if (index !== -1 && (!isRelative || index > 1)) {
                     ext = moduleNamePlusExt.substring(index, moduleNamePlusExt.length);
                     moduleNamePlusExt = moduleNamePlusExt.substring(0, index);
                 }
 
-                return req.nameToUrl(normalize(moduleNamePlusExt, relName), ext);
+                return req.nameToUrl(normalize(moduleNamePlusExt, relName), ext, true);
             };
 
             req.defined = function (id) {
