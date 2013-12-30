@@ -1389,7 +1389,7 @@ var requirejs, require, define;
     }
 
     //data-main support.
-    if (topReq.isBrowser) {
+    if (topReq.isBrowser && !contexts._.config.skipDataMain) {
         dataMain = document.querySelectorAll('script[data-main]')[0];
         dataMain = dataMain && dataMain.getAttribute('data-main');
         if (dataMain) {
