@@ -51,14 +51,17 @@ var requirejs, require, define;
     }
 
     /**
-     * Mixes in properties from source into target,
+     * Simple function to mix in properties from source into target,
      * but only if target does not already have a property of the same name.
      */
     function mixin(target, source, force, deepStringMixin) {
         if (source) {
             eachProp(source, function (value, prop) {
                 if (force || !hasProp(target, prop)) {
-                    if (deepStringMixin && typeof value !== 'string') {
+                    if (deepStringMixin && typeof value === 'object' && value &&
+                        !Array.isArray(value) && typeof value !== 'function' &&
+                        !(value instanceof RegExp)) {
+
                         if (!target[prop]) {
                             target[prop] = {};
                         }
@@ -313,6 +316,7 @@ var requirejs, require, define;
                 waitSeconds: 7,
                 baseUrl: './',
                 paths: {},
+                bundles: {},
                 pkgs: {},
                 shim: {},
                 config: {}
@@ -326,7 +330,8 @@ var requirejs, require, define;
             startTime = (new Date()).getTime(),
             errCount = 0,
             trackedErrors = {},
-            urlFetched = {};
+            urlFetched = {},
+            bundlesMap = {};
 
         /**
          * Trims the . and .. from an array of path segments.
@@ -338,8 +343,8 @@ var requirejs, require, define;
          * @param {Array} ary the array of path segments.
          */
         function trimDots(ary) {
-            var i, part;
-            for (i = 0; ary[i]; i += 1) {
+            var i, part, length = ary.length;
+            for (i = 0; i < length; i++) {
                 part = ary[i];
                 if (part === '.') {
                     ary.splice(i, 1);
@@ -372,11 +377,11 @@ var requirejs, require, define;
          * @returns {String} normalized name
          */
         function normalize(name, baseName, applyMap) {
-            var pkgName, pkgConfig, mapValue, nameParts, i, j, nameSegment,
+            var pkgMain, mapValue, nameParts, i, j, nameSegment, lastIndex,
                 foundMap, foundI, foundStarMap, starI,
                 baseParts = baseName && baseName.split('/'),
                 normalizedBaseParts = baseParts,
-                map = applyMap && config.map,
+                map = config.map,
                 starMap = map && map['*'];
 
             //Adjust any relative paths.
@@ -385,29 +390,26 @@ var requirejs, require, define;
                 //otherwise, assume it is a top-level require that will
                 //be relative to baseUrl in the end.
                 if (baseName) {
-                    if (getOwn(config.pkgs, baseName)) {
-                        //If the baseName is a package name, then just treat it as one
-                        //name to concat the name with.
-                        normalizedBaseParts = baseParts = [baseName];
-                    } else {
-                        //Convert baseName to array, and lop off the last part,
-                        //so that . matches that 'directory' and not name of the baseName's
-                        //module. For instance, baseName of 'one/two/three', maps to
-                        //'one/two/three.js', but we want the directory, 'one/two' for
-                        //this normalization.
-                        normalizedBaseParts = baseParts.slice(0, baseParts.length - 1);
+                    //Convert baseName to array, and lop off the last part,
+                    //so that . matches that 'directory' and not name of the baseName's
+                    //module. For instance, baseName of 'one/two/three', maps to
+                    //'one/two/three.js', but we want the directory, 'one/two' for
+                    //this normalization.
+                    normalizedBaseParts = baseParts.slice(0, baseParts.length - 1);
+                    name = name.split('/');
+                    lastIndex = name.length - 1;
+
+                    // If wanting node ID compatibility, strip .js from end
+                    // of IDs. Have to do this here, and not in nameToUrl
+                    // because node allows either .js or non .js to map
+                    // to same file.
+                    if (config.nodeIdCompat && jsSuffixRegExp.test(name[lastIndex])) {
+                        name[lastIndex] = name[lastIndex].replace(jsSuffixRegExp, '');
                     }
 
-                    name = normalizedBaseParts.concat(name.split('/'));
+                    name = normalizedBaseParts.concat(name);
                     trimDots(name);
-
-                    //Some use of packages may use a . path to reference the
-                    //'main' module name, so normalize for that.
-                    pkgConfig = getOwn(config.pkgs, (pkgName = name[0]));
                     name = name.join('/');
-                    if (pkgConfig && name === pkgName + '/' + pkgConfig.main) {
-                        name = pkgName;
-                    }
                 } else if (name.indexOf('./') === 0) {
                     // No baseName, so this is ID is resolved relative
                     // to baseUrl, pull off the leading dot.
@@ -416,10 +418,10 @@ var requirejs, require, define;
             }
 
             //Apply map config if available.
-            if (applyMap && (baseParts || starMap) && map) {
+            if (applyMap && map && (baseParts || starMap)) {
                 nameParts = name.split('/');
 
-                for (i = nameParts.length; i > 0; i -= 1) {
+                outerLoop: for (i = nameParts.length; i > 0; i -= 1) {
                     nameSegment = nameParts.slice(0, i).join('/');
 
                     if (baseParts) {
@@ -436,14 +438,10 @@ var requirejs, require, define;
                                     //Match, update name to the new value.
                                     foundMap = mapValue;
                                     foundI = i;
-                                    break;
+                                    break outerLoop;
                                 }
                             }
                         }
-                    }
-
-                    if (foundMap) {
-                        break;
                     }
 
                     //Check for a star map match, but just hold on to it,
@@ -466,9 +464,12 @@ var requirejs, require, define;
                 }
             }
 
-            return name;
-        }
+            // If the name points to a package's name, use
+            // the package main instead.
+            pkgMain = getOwn(config.pkgs, name);
 
+            return pkgMain ? pkgMain : name;
+        }
 
         function makeShimExports(value) {
             function fn() {
@@ -573,8 +574,19 @@ var requirejs, require, define;
                 typeof navigator !== 'undefined';
 
             req.nameToUrl = function (moduleName, ext, skipExt) {
-                var paths, pkgs, pkg, pkgPath, syms, i, parentModule, url,
-                    parentPath;
+                var paths, syms, i, parentModule, url,
+                    parentPath, bundleId,
+                    pkgMain = getOwn(config.pkgs, moduleName);
+
+                if (pkgMain) {
+                    moduleName = pkgMain;
+                }
+
+                bundleId = getOwn(bundlesMap, moduleName);
+
+                if (bundleId) {
+                    return req.nameToUrl(bundleId, ext, skipExt);
+                }
 
                 //If a colon is in the URL, it indicates a protocol is used and it is just
                 //an URL to a file, or if it starts with a slash, contains a query arg (i.e. ?)
@@ -588,7 +600,6 @@ var requirejs, require, define;
                 } else {
                     //A module that needs to be converted to a path.
                     paths = config.paths;
-                    pkgs = config.pkgs;
 
                     syms = moduleName.split('/');
                     //For each module name segment, see if there is a path
@@ -596,7 +607,7 @@ var requirejs, require, define;
                     //and work up from it.
                     for (i = syms.length; i > 0; i -= 1) {
                         parentModule = syms.slice(0, i).join('/');
-                        pkg = getOwn(pkgs, parentModule);
+
                         parentPath = getOwn(paths, parentModule);
                         if (parentPath) {
                             //If an array, it means there are a few choices,
@@ -605,16 +616,6 @@ var requirejs, require, define;
                                 parentPath = parentPath[0];
                             }
                             syms.splice(0, i, parentPath);
-                            break;
-                        } else if (pkg) {
-                            //If module name is just the package name, then looking
-                            //for the main module.
-                            if (moduleName === pkg.name) {
-                                pkgPath = pkg.location + '/' + pkg.main;
-                            } else {
-                                pkgPath = pkg.location;
-                            }
-                            syms.splice(0, i, pkgPath);
                             break;
                         }
                     }
@@ -691,15 +692,15 @@ var requirejs, require, define;
                 ret = d.factory.apply(defined[name], d.values);
 
             if (name) {
-                //If setting exports via "module" is in play,
-                //favor that over return value and exports.
-                //After that, favor a non-undefined return
-                //value over exports use.
-                if (d.cjsModule && d.cjsModule.exports !== undef &&
-                        d.cjsModule.exports !== defined[name]) {
-                    ret = d.cjsModule.exports;
-                } else if (ret === undef && d.usingExports) {
-                    ret = defined[name];
+                // Favor return value over exports. If node/cjs in play,
+                // then will not have a return value anyway. Favor
+                // module.exports assignment over exports object.
+                if (ret === undef) {
+                    if (d.cjsModule) {
+                        ret = d.cjsModule.exports;
+                    } else if (d.usingExports) {
+                        ret = defined[name];
+                    }
                 }
             } else {
                 //Remove the require deferred from the list to
@@ -798,7 +799,7 @@ var requirejs, require, define;
                 /*jslint evil: true */
                 var d = getDefer(id),
                     map = makeMap(makeMap(id).n),
-                    plainId = map.id;
+                   plainId = map.id;
 
                 fromTextCalled = true;
 
@@ -905,7 +906,7 @@ var requirejs, require, define;
         }
 
         callDep = function (map, relName) {
-            var args,
+            var args, bundleId,
                 name = map.id,
                 shim = config.shim[name];
 
@@ -915,26 +916,33 @@ var requirejs, require, define;
                 main.apply(undef, args);
             } else if (!hasProp(deferreds, name)) {
                 if (map.pr) {
-                    return callDep(makeMap(map.pr)).then(function (plugin) {
-                        //Redo map now that plugin is known to be loaded
-                        var newMap = makeMap(name, relName, true),
-                            newId = newMap.id,
-                            shim = getOwn(config.shim, newId);
+                    //If a bundles config, then just load that file instead to
+                    //resolve the plugin, as it is built into that bundle.
+                    if ((bundleId = getOwn(bundlesMap, name))) {
+                        map.url = req.nameToUrl(bundleId);
+                        load(map);
+                    } else {
+                        return callDep(makeMap(map.pr)).then(function (plugin) {
+                            //Redo map now that plugin is known to be loaded
+                            var newMap = makeMap(name, relName, true),
+                                newId = newMap.id,
+                                shim = getOwn(config.shim, newId);
 
-                        //Make sure to only call load once per resource. Many
-                        //calls could have been queued waiting for plugin to load.
-                        if (!hasProp(calledPlugin, newId)) {
-                            calledPlugin[newId] = true;
-                            if (shim && shim.deps) {
-                                req(shim.deps, function () {
+                            //Make sure to only call load once per resource. Many
+                            //calls could have been queued waiting for plugin to load.
+                            if (!hasProp(calledPlugin, newId)) {
+                                calledPlugin[newId] = true;
+                                if (shim && shim.deps) {
+                                    req(shim.deps, function () {
+                                        callPlugin(plugin, newMap, relName);
+                                    });
+                                } else {
                                     callPlugin(plugin, newMap, relName);
-                                });
-                            } else {
-                                callPlugin(plugin, newMap, relName);
+                                }
                             }
-                        }
-                        return getDefer(newId).promise;
-                    });
+                            return getDefer(newId).promise;
+                        });
+                    }
                 } else if (shim && shim.deps) {
                     req(shim.deps, function () {
                         load(map);
@@ -1017,18 +1025,6 @@ var requirejs, require, define;
             return result;
         };
 
-        function makeConfig(name) {
-            return function () {
-                var c,
-                    pkg = getOwn(config.pkgs, name);
-                // For packages, only support config targeted
-                // at the main module.
-                c = pkg ? getOwn(config.config, name + '/' + pkg.main) :
-                          getOwn(config.config, name);
-                return  c || {};
-            };
-        }
-
         handlers = {
             require: function (name) {
                 return makeRequire(name);
@@ -1045,8 +1041,10 @@ var requirejs, require, define;
                 return {
                     id: name,
                     uri: '',
-                    exports: defined[name],
-                    config: makeConfig(name)
+                    exports: handlers.exports(name),
+                    config: function () {
+                        return getOwn(config.config, name) || {};
+                    }
                 };
             }
         };
@@ -1256,28 +1254,35 @@ var requirejs, require, define;
             //Save off the paths and packages since they require special processing,
             //they are additive.
             var primId,
-                pkgs = config.pkgs,
                 shim = config.shim,
                 objs = {
                     paths: true,
+                    bundles: true,
                     config: true,
                     map: true
                 };
 
             eachProp(cfg, function (value, prop) {
                 if (objs[prop]) {
-                    if (prop === 'map') {
-                        if (!config.map) {
-                            config.map = {};
-                        }
-                        mixin(config[prop], value, true, true);
-                    } else {
-                        mixin(config[prop], value, true);
+                    if (!config[prop]) {
+                        config[prop] = {};
                     }
+                    mixin(config[prop], value, true, true);
                 } else {
                     config[prop] = value;
                 }
             });
+
+            //Reverse map the bundles
+            if (cfg.bundles) {
+                eachProp(cfg.bundles, function (value, prop) {
+                    value.forEach(function (v) {
+                        if (v !== prop) {
+                            bundlesMap[v] = prop;
+                        }
+                    });
+                });
+            }
 
             //Merge shim
             if (cfg.shim) {
@@ -1299,29 +1304,25 @@ var requirejs, require, define;
             //Adjust packages if necessary.
             if (cfg.packages) {
                 cfg.packages.forEach(function (pkgObj) {
-                    var location;
+                    var location, name;
 
                     pkgObj = typeof pkgObj === 'string' ? { name: pkgObj } : pkgObj;
+
+                    name = pkgObj.name;
                     location = pkgObj.location;
+                    if (location) {
+                        config.paths[name] = pkgObj.location;
+                    }
 
-                    //Create a brand new object on pkgs, since currentPackages can
-                    //be passed in again, and config.pkgs is the internal transformed
-                    //state for all package configs.
-                    pkgs[pkgObj.name] = {
-                        name: pkgObj.name,
-                        location: location || pkgObj.name,
-                        //Remove leading dot in main, so main paths are normalized,
-                        //and remove any trailing .js, since different package
-                        //envs have different conventions: some use a module name,
-                        //some use a file name.
-                        main: (pkgObj.main || 'main')
-                              .replace(currDirRegExp, '')
-                              .replace(jsSuffixRegExp, '')
-                    };
+                    //Save pointer to main module ID for pkg name.
+                    //Remove leading dot in main, so main paths are normalized,
+                    //and remove any trailing .js, since different package
+                    //envs have different conventions: some use a module name,
+                    //some use a file name.
+                    config.pkgs[name] = pkgObj.name + '/' + (pkgObj.main || 'main')
+                                 .replace(currDirRegExp, '')
+                                 .replace(jsSuffixRegExp, '');
                 });
-
-                //Done with modifications, assing packages back to context config
-                config.pkgs = pkgs;
             }
 
             //If want prim injected, inject it now.
@@ -1333,7 +1334,7 @@ var requirejs, require, define;
             //If a deps array or a config callback is specified, then call
             //require with those args. This is useful when require is defined as a
             //config object before require.js is loaded.
-            if (cfg.deps) {
+            if (cfg.deps || cfg.callback) {
                 req(cfg.deps, cfg.callback);
             }
 
