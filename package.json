@@ -14,6 +14,10 @@
             "url": "https://github.com/requirejs/alameda/blob/master/LICENSE"
         }
     ],
+    "repository": {
+        "type": "git",
+        "url": "https://github.com/requirejs/alameda.git"
+    },
     "main": "alameda.js",
     "volo": {
         "url": "https://raw.github.com/requirejs/alameda/{version}/alameda.js"
