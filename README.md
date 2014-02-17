@@ -33,13 +33,13 @@ declares `requirejs`, to make passing the requirejs tests easier. alameda also
 has a good chance of becoming requirejs in a far-future requirejs version.
 
 One config option alameda exposes that is not part of the requirejs API is the
-`primId` config option. You have the option to inject alameda's private
+`definePrim` config option. You have the option to inject alameda's private
 [prim](https://github.com/requirejs/prim) implementation as a module with the
-ID given in `primId`:
+ID given in `definePrim`:
 
 ```javascript
 require.config({
-    primId: 'prim'
+    definePrim: 'prim'
 });
 
 require(['prim'], function (prim) {
