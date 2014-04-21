@@ -1,5 +1,5 @@
 /**
- * alameda 0.2.1 Copyright (c) 2011-2014, The Dojo Foundation All Rights Reserved.
+ * alameda 0.2.1-depscan Copyright (c) 2011-2014, The Dojo Foundation All Rights Reserved.
  * Available via the MIT or new BSD license.
  * see: http://github.com/requirejs/alameda for details
  */
