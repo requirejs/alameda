@@ -1,5 +1,5 @@
 /**
- * alameda 0.2.0-depscan Copyright (c) 2011-2014, The Dojo Foundation All Rights Reserved.
+ * alameda 0.2.0-xhrToString Copyright (c) 2011-2014, The Dojo Foundation All Rights Reserved.
  * Available via the MIT or new BSD license.
  * see: http://github.com/requirejs/alameda for details
  */
@@ -1381,11 +1381,11 @@ var requirejs, require, define;
 
     topReq.contexts = contexts;
 
-    //>>excludeStart("alamedaXhrToStringExclude", pragmas.alamedaXhrToStringExclude);
+    //>>includeStart("alamedaKeepXhrToString", pragmas.alamedaKeepXhrToString);
     function toStringTest() {
         'hello';
     }
-    if ((bootstrapConfig && bootstrapConfig._noToString) ||
+    if ((bootstrapConfig && bootstrapConfig._useXhrToString) ||
         toStringTest.toString().indexOf('hello') === -1) {
         var oldLoad = topReq.load, fetchText, findDepsFromText,
             slice = Array.prototype.slice,
@@ -1459,7 +1459,7 @@ var requirejs, require, define;
             });
         };
     }
-    //>>excludeEnd("alamedaXhrToStringExclude");
+    //>>includeEnd("alamedaKeepXhrToString");
 
     define = function () {
         queue.push([].slice.call(arguments, 0));
