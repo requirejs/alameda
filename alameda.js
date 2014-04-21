@@ -1,5 +1,5 @@
 /**
- * alameda 0.2.0 Copyright (c) 2011-2014, The Dojo Foundation All Rights Reserved.
+ * alameda 0.2.1 Copyright (c) 2011-2014, The Dojo Foundation All Rights Reserved.
  * Available via the MIT or new BSD license.
  * see: http://github.com/requirejs/alameda for details
  */
@@ -842,7 +842,7 @@ var requirejs, require, define;
         }
 
         load = typeof importScripts === 'function' ?
-                function (map) {
+                function (map, context) {
                     var url = map.url;
                     if (urlFetched[url]) {
                         return;
@@ -855,7 +855,7 @@ var requirejs, require, define;
                     importScripts(url);
                     takeQueue(map.id);
                 } :
-                function (map) {
+                function (map, context) {
                     var script,
                         id = map.id,
                         url = map.url;
@@ -888,7 +888,7 @@ var requirejs, require, define;
                             //retry
                             pathConfig.shift();
                             d.map = makeMap(id);
-                            load(d.map);
+                            req.load(d.map, context);
                         } else {
                             err = new Error('Load failed: ' + id + ': ' + script.src);
                             err.requireModules = [id];
@@ -920,7 +920,7 @@ var requirejs, require, define;
                     //resolve the plugin, as it is built into that bundle.
                     if ((bundleId = getOwn(bundlesMap, name))) {
                         map.url = req.nameToUrl(bundleId);
-                        load(map);
+                        req.load(map, context);
                     } else {
                         return callDep(makeMap(map.pr)).then(function (plugin) {
                             //Redo map now that plugin is known to be loaded
@@ -945,10 +945,10 @@ var requirejs, require, define;
                     }
                 } else if (shim && shim.deps) {
                     req(shim.deps, function () {
-                        load(map);
+                        req.load(map, context);
                     });
                 } else {
-                    load(map);
+                    req.load(map, context);
                 }
             }
 
@@ -1167,12 +1167,7 @@ var requirejs, require, define;
                     //Remove comments from the callback string,
                     //look for require calls, and pull them into the dependencies,
                     //but only if there are function args.
-                    factory
-                        .toString()
-                        .replace(commentRegExp, '')
-                        .replace(cjsRequireRegExp, function (match, dep) {
-                            deps.push(dep);
-                        });
+                    req._findDepsFromFactory(context, name, deps, factory);
 
                     //May be a CommonJS thing even without require calls, but still
                     //could use exports, and module. Avoid doing exports and module
@@ -1231,6 +1226,15 @@ var requirejs, require, define;
         };
 
         req = makeRequire(null, true);
+        req.load = load;
+        req._findDepsFromFactory = function(context, name, deps, factory) {
+            return factory
+            .toString()
+            .replace(commentRegExp, '')
+            .replace(cjsRequireRegExp, function (match, dep) {
+                deps.push(dep);
+            });
+        };
 
         /*
          * Just drops the config on the floor, but returns req in case
