@@ -24,3 +24,4 @@ doh.registerUrl("dataMainBaseUrl", "../dataMainBaseUrl/dataMainBaseUrl.html");
 doh.registerUrl("emptyRequire", "../emptyRequire/emptyRequire.html");
 
 doh.registerUrl("definePrim", "../definePrim/definePrim.html");
+doh.registerUrl("depscan", "../depscan/depscan.html");

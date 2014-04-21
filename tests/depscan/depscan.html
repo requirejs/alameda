@@ -4,8 +4,12 @@
     <title>alameda: depscan Test</title>
     <script src="../doh/runner.js"></script>
     <script src="../doh/_browserRunner.js"></script>
+    <script>
+    var require = {
+      _noToString: true
+    };
+    </script>
     <script src="../../alameda.js"></script>
-    <script src="alameda-depscan.js"></script>
     <script src="depscan-tests.js"></script>
 </head>
 <body>

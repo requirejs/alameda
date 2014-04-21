@@ -1,5 +1,5 @@
 /**
- * alameda 0.2.1-depscan Copyright (c) 2011-2014, The Dojo Foundation All Rights Reserved.
+ * alameda 0.2.0-depscan Copyright (c) 2011-2014, The Dojo Foundation All Rights Reserved.
  * Available via the MIT or new BSD license.
  * see: http://github.com/requirejs/alameda for details
  */
@@ -7,7 +7,7 @@
 //be followed.
 /*jslint sloppy: true, nomen: true, regexp: true */
 /*global setTimeout, process, document, navigator, importScripts,
-  setImmediate */
+  setImmediate, XMLHttpRequest */
 
 var requirejs, require, define;
 (function (global, undef) {
@@ -1380,6 +1380,86 @@ var requirejs, require, define;
     };
 
     topReq.contexts = contexts;
+
+    //>>excludeStart("alamedaXhrToStringExclude", pragmas.alamedaXhrToStringExclude);
+    function toStringTest() {
+        'hello';
+    }
+    if ((bootstrapConfig && bootstrapConfig._noToString) ||
+        toStringTest.toString().indexOf('hello') === -1) {
+        var oldLoad = topReq.load, fetchText, findDepsFromText,
+            slice = Array.prototype.slice,
+            apiRegExp = /([^\.]|^)define\s*\(\s*(['"][^"']+["']\s*,)?\s*function\s*\(\s*require/;
+
+        fetchText = function (url, callback, errback) {
+            var xhr = new XMLHttpRequest();
+
+            xhr.open('GET', url, true);
+            xhr.onreadystatechange = function(evt) {
+                var status, err;
+                if (xhr.readyState === 4) {
+                    status = xhr.status;
+                    if (status > 399 && status < 600) {
+                        //An http 4xx or 5xx error. Signal an error.
+                        err = new Error(url + ' HTTP status: ' + status);
+                        err.xhr = xhr;
+                        errback(err);
+                    } else {
+                        callback(xhr.responseText);
+                    }
+                }
+            };
+            xhr.responseType = 'text';
+            xhr.send(null);
+        };
+
+
+        topReq._findDepsFromFactory = function(context, name, deps, factory) {
+            if (context._depScans && hasProp(context._depScans, name)) {
+                var foundDeps = context._depScans[name];
+                if (foundDeps) {
+                    foundDeps.forEach(function(foundDep) {
+                        deps.push(foundDep);
+                    });
+                }
+            }
+        };
+
+        findDepsFromText = function (context, id, text) {
+            var deps = [];
+            text =  text.replace(commentRegExp, '');
+
+            var match = apiRegExp.exec(text);
+            if (match) {
+                text = text.substring(match.index + match[0].length);
+                text.replace(cjsRequireRegExp, function (match, dep) {
+                    deps.push(dep);
+                });
+
+                if (deps.length) {
+                    if (!hasProp(context, '_depScans')) {
+                        context._depScans = {};
+                    }
+                    context._depScans[id] = deps;
+                }
+            }
+        };
+
+        topReq.load = function(map, context) {
+            var args = slice.call(arguments);
+
+            fetchText(map.url, function(text) {
+                findDepsFromText(context, map.id, text);
+                oldLoad.apply(topReq, args);
+            }, function(e) {
+              var err = new Error('Load failed: ' + map.id + ': ' + map.url +
+                                  ': ' + e);
+              err.requireModules = [map.id];
+              context.deferreds[map.id].reject(err);
+            });
+        };
+    }
+    //>>excludeEnd("alamedaXhrToStringExclude");
 
     define = function () {
         queue.push([].slice.call(arguments, 0));
