@@ -32,25 +32,6 @@ alameda supports [the requirejs API](http://requirejs.org/docs/api.html). It eve
 declares `requirejs`, to make passing the requirejs tests easier. alameda also
 has a good chance of becoming requirejs in a far-future requirejs version.
 
-One config option alameda exposes that is not part of the requirejs API is the
-`definePrim` config option. You have the option to inject alameda's private
-[prim](https://github.com/requirejs/prim) implementation as a module with the
-ID given in `definePrim`:
-
-```javascript
-require.config({
-    definePrim: 'prim'
-});
-
-require(['prim'], function (prim) {
-    // prim here is the prim version built
-    // in to alameda.js, no need to deliver
-    // a separate prim module.
-})
-```
-
-With prim, you get a basic [promises a+plus compliant](https://github.com/promises-aplus/promises-tests) implementation with .then() chaining.
-
 ## Running tests
 
 The tests are pulled from almond and requirejs. All tests should be served
