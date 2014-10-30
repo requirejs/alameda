@@ -115,8 +115,11 @@ var requirejs, require, define;
             urlFetched = {},
             bundlesMap = {};
 
-        // A nextTick that uses a promise for the async trip
-        var nextTick;
+        //Uses a resolved promise to get an async resolution, but
+        //using the microtask queue inside a promise, instead of
+        //a setTimeout, so that other things in the main event
+        //loop do not hold up the processing.
+        var nextMicroTaskPass;
         (function () {
             'use strict';
 
@@ -132,7 +135,7 @@ var requirejs, require, define;
                 }
             }
 
-            nextTick = function (fn) {
+            nextMicroTaskPass = function (fn) {
                 waiting.push(fn);
                 if (!waitingResolving) {
                     waitingResolving = new Promise(function (resolve, reject) {
@@ -369,7 +372,7 @@ var requirejs, require, define;
                 callback = callback || function () {};
 
                 //Complete async to maintain expected execution semantics.
-                nextTick(function () {
+                nextMicroTaskPass(function () {
                     //Grab any modules that were defined after a
                     //require call.
                     takeQueue();
@@ -897,8 +900,8 @@ var requirejs, require, define;
             if (loadCount === 0) {
                 //If passed in a deferred, it is for a specific require call.
                 //Could be a sync case that needs resolution right away.
-                //Otherwise, if no deferred, means a nextTick and all
-                //waiting require deferreds should be checked.
+                //Otherwise, if no deferred, means it was the last ditch
+                //timeout-based check, so check all waiting require deferreds.
                 if (d) {
                     if (!d.finished) {
                         breakCycle(d, {}, {});
@@ -925,13 +928,18 @@ var requirejs, require, define;
                 req.onError(err);
             } else if (loadCount || requireDeferreds.length) {
                 //Something is still waiting to load. Wait for it, but only
-                //if a later check is not already scheduled.
+                //if a later check is not already scheduled. Using setTimeout
+                //because want other things in the event loop to happen,
+                //to help in dependency resolution, and this is really a
+                //last ditch check, mostly for detecting timeouts (cycles
+                //should come through the main() use of check()), so it can
+                //wait a bit before doing the final check.
                 if (!checkingLater) {
                     checkingLater = true;
-                    nextTick(function () {
+                    setTimeout(function () {
                         checkingLater = false;
                         check();
-                    });
+                    }, 70);
                 }
             }
         }
