@@ -113,37 +113,8 @@ var requirejs, require, define;
             errCount = 0,
             trackedErrors = {},
             urlFetched = {},
-            bundlesMap = {};
-
-        //Uses a resolved promise to get an async resolution, but
-        //using the microtask queue inside a promise, instead of
-        //a setTimeout, so that other things in the main event
-        //loop do not hold up the processing.
-        var nextMicroTaskPass;
-        (function () {
-            'use strict';
-
-            var waitingResolving,
-                waiting = [];
-
-            function callWaiting() {
-                waitingResolving = null;
-                var w = waiting;
-                waiting = [];
-                while (w.length) {
-                    w.shift()();
-                }
-            }
-
-            nextMicroTaskPass = function (fn) {
-                waiting.push(fn);
-                if (!waitingResolving) {
-                    waitingResolving = new Promise(function (resolve, reject) {
-                        resolve();
-                    }).then(callWaiting).catch(delayedError);
-                }
-            };
-        }());
+            bundlesMap = {},
+            asyncResolve = Promise.resolve();
 
         /**
          * Trims the . and .. from an array of path segments.
@@ -372,7 +343,7 @@ var requirejs, require, define;
                 callback = callback || function () {};
 
                 //Complete async to maintain expected execution semantics.
-                nextMicroTaskPass(function () {
+                asyncResolve.then(function () {
                     //Grab any modules that were defined after a
                     //require call.
                     takeQueue();
