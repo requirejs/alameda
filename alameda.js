@@ -1,15 +1,18 @@
 /**
- * alameda 0.2.1-native-promise Copyright (c) 2011-2015, The Dojo Foundation All Rights Reserved.
+ * alameda 0.2.1+ Copyright (c) 2011-2016, The Dojo Foundation All Rights Reserved.
  * Available via the MIT or new BSD license.
  * see: http://github.com/requirejs/alameda for details
  */
-//Going sloppy to avoid 'use strict' string cost, but strict practices should
-//be followed.
+//Going sloppy because loader plugin execs may depend on non-strict execution.
 /*jslint sloppy: true, nomen: true, regexp: true */
 /*global document, navigator, importScripts, Promise, setTimeout */
 
 var requirejs, require, define;
-(function (global, undef) {
+(function (global, Promise, undef) {
+    if (!Promise) {
+      throw new Error('No Promise implementation available');
+    }
+
     var topReq, dataMain, src, subPath,
         bootstrapConfig = requirejs || require,
         hasOwn = Object.prototype.hasOwnProperty,
@@ -1192,4 +1195,4 @@ var requirejs, require, define;
             topReq([dataMain]);
         }
     }
-}(this));
+}(this, (typeof Promise !== 'undefined' ? Promise : undefined)));

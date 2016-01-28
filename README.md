@@ -3,25 +3,14 @@
 An AMD loader, like [requirejs](http://requirejs.org), but with the following
 implementation changes:
 
-* Uses promises underneath, via [prim](https://github.com/requirejs/prim).
-* Targets "modern" web browsers that implement script.onload standardized behavior.
+* Assumes Promises are available in the JS environment.
+* Targets "modern" web browsers that implement standardized script.onload behavior: execute load listener right after script execution, something IE9 and below did not do.
 * Assumes browser support for Array.isArray, array extras, ES5 features.
-* Does not support a couple of less-used APIs (see tests section below)
+* Does not support a couple of less-used APIs (see tests section below).
 
-These changes means alameda is around 30% smaller than requirejs, 4148 bytes vs 6036 bytes, minified+gzipped sizes. If you need a basic promise module, alameda comes with
-one that can be [injected as a module](#api), so in that case you also save some over
-size for your project.
+These changes means alameda is around 35% smaller than requirejs, 4.1 KB vs 6.4 KB, minified+gzipped sizes.
 
-Browser support:
-
-* Firefox
-* Chrome
-* Safari, WebKits in iOS and Android
-* IE 10+
-
-So, no IE 6-9, and probably not NetFront browsers, like the PS3. IE 9 had
-[a bug](http://connect.microsoft.com/IE/feedback/details/648057/script-onload-event-is-not-fired-immediately-after-script-execution)
-where onload did not follow script execution. That bug was fixed in IE 10. If that fix was backported to IE 9, then alameda would work in IE 9.
+Browser support: browsers that [natively provide Promises](http://caniuse.com/#feat=promises). If you need to support IE 10 and 11, the [alameda-prim](https://github.com/requirejs/alameda-prim) project includes a private promise shim.
 
 You can continue to use requirejs and the r.js optimizer for other scenarios.
 The r.js optimizer works well with alameda-based projects.
@@ -63,10 +52,9 @@ Then do the following:
 * require.undef()-related tests.
 * onResourceLoadNestedRequire: depends on implementing requirejs.onResourceLoad
 hook used for builds/some third party tools. This API is not required for normal
-module loading. Use the [r.js optimizer](http://requirejs.org/docs/optimization.html)
-for tools that need this API.
+module loading.
 
 ## How to get help
 
-* Contact the [requirejs list](https://groups.google.com/group/requirejs).
 * Open issues in the [issue tracker](https://github.com/requirejs/alameda/issues).
+* Contact the [requirejs list](https://groups.google.com/group/requirejs).
