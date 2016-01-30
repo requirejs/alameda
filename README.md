@@ -42,6 +42,18 @@ require(['something'], function(something) {
 });
 ```
 
+## Install
+
+If using a package manager:
+
+```
+npm install alameda
+
+# or
+
+[npm | bower | volo] install requirejs/alameda
+```
+
 ## Running tests
 
 The tests are pulled from almond and requirejs. All tests should be served

@@ -2,6 +2,7 @@ LICENSE
 alameda.min.js
 alameda.min.js.gz
 copyrequirejstests.sh
+copy-to-prim.sh
 require.js
 shrinktest.sh
 testBaseUrl.js

@@ -1,5 +1,6 @@
 alameda.min.js
 alameda.min.js.gz
+copy-to-prim.sh
 require.js
 testBaseUrl.js
 tests-requirejs
