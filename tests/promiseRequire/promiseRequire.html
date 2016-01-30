@@ -6,6 +6,11 @@
     <script src="../doh/_browserRunner.js"></script>
     <script src="../../alameda.js"></script>
     <script>
+
+    require.config({
+        defaultErrback: null
+    });
+
     var doneCount = 0;
     var doneMax = 5;
     var master = new doh.Deferred();
@@ -39,7 +44,7 @@
     });
 
 
-    // then with no initial callback.
+    // then with errback getting the original success callback error.
     require(['app'], function(app) {
         doh.is('app', app.name);
         doh.is('bar', app.bar.name);
@@ -52,14 +57,15 @@
         done();
     });
 
-    // then with no initial callback.
+    // Initial errback getting error from success callback, and subsequent
+    // .then gets the success path if errback does not error.
     require(['app'], function(app) {
         doh.is('app', app.name);
         doh.is('bar', app.bar.name);
         throw new Error('Error inside a callback');
     }, function (err) {
-        console.error('WHAT 2: ', err);
-        done(err);
+        console.log('Expected to get here');
+        doh.is(true, !!err);
     }).then(function(value) {
         console.error('WHAT 3', value);
         done(value);
@@ -77,6 +83,16 @@
         doh.is(true, !!err);
         done();
     });
+
+
+    // No catch, see if the browser prints out unhandled promises with errors.
+    // Not part of the test.
+    // require(['app'], function(app) {
+    //     doh.is('app', app.name);
+    //     doh.is('bar', app.bar.name);
+    //     throw new Error('Error inside a callback');
+    // });
+
 
     //Register the test
     doh.register(

@@ -479,8 +479,14 @@ var requirejs, require, define;
         function defineModule(d) {
             d.factoryCalled = true;
 
-            var name = d.map.id,
-                ret = d.factory.apply(defined[name], d.values);
+            var ret,
+                name = d.map.id;
+
+            try {
+               ret = d.factory.apply(defined[name], d.values);
+            } catch(err) {
+               return reject(d, err);
+            }
 
             if (name) {
                 // Favor return value over exports. If node/cjs in play,
@@ -515,7 +521,7 @@ var requirejs, require, define;
             }
         }
 
-        function makeDefer(name, errback) {
+        function makeDefer(name) {
             var d = {};
             d.promise = new Promise(function (resolve, reject) {
                 d.resolve = resolve;
@@ -523,16 +529,7 @@ var requirejs, require, define;
                   if (!name) {
                     requireDeferreds.splice(requireDeferreds.indexOf(d), 1);
                   }
-                  if (errback && (!name && !d.factoryCalled)) {
-                    try {
-                      err = errback(err);
-                      resolve(err);
-                    } catch (e) {
-                      reject(e);
-                    }
-                  } else {
-                    reject(err);
-                  }
+                  reject(err);
                 };
             });
             d.map = name ? makeMap(name, null, true) : {};
@@ -550,7 +547,7 @@ var requirejs, require, define;
             return d;
         }
 
-        function getDefer(name, errback) {
+        function getDefer(name) {
             var d;
             if (name) {
                 d = hasProp(deferreds, name) && deferreds[name];
@@ -558,7 +555,7 @@ var requirejs, require, define;
                     d = deferreds[name] = makeDefer(name);
                 }
             } else {
-                d = makeDefer(undefined, errback);
+                d = makeDefer();
                 requireDeferreds.push(d);
             }
             return d;
@@ -945,6 +942,7 @@ var requirejs, require, define;
                     req.onError(e);
                 }
             });
+            return e;
         }
 
         main = function (name, deps, factory, errback, relName) {
@@ -954,7 +952,7 @@ var requirejs, require, define;
             }
             calledDefine[name] = true;
 
-            var d = getDefer(name, errback);
+            var d = getDefer(name);
 
             //This module may not have dependencies
             if (deps && !Array.isArray(deps)) {
@@ -965,10 +963,18 @@ var requirejs, require, define;
                 deps = [];
             }
 
-            // Only use delayedError if there is not an errback specified. If
-            // if there is an errback, it means it will handle the error.
-            if (name && !errback) {
-              d.promise.catch(delayedError);
+            if (!errback) {
+                if (hasProp(config, 'defaultErrback')) {
+                    if (config.defaultErrback) {
+                        errback = config.defaultErrback;
+                    }
+                } else {
+                    errback = delayedError;
+                }
+            }
+
+            if (errback) {
+               d.promise.catch(errback);
             }
 
             //Use name if no relName
