@@ -21,6 +21,27 @@ alameda supports [the requirejs API](http://requirejs.org/docs/api.html). It eve
 declares `requirejs`, to make passing the requirejs tests easier. alameda also
 has a good chance of becoming requirejs in a far-future requirejs version.
 
+There are some differences with requirejs though:
+
+### require promise
+
+`require([])` will return a promise.
+
+### require errback
+
+alameda differs from requirejs in this case:
+
+```javascript
+require(['something'], function(something) {
+  throw new Error('oops');
+}, function (err) {
+  //requirejs will call this errback function if the callback to require([])
+  //throws. However, alameda does not, to match behavior with promises and their
+  //errbacks. If you want to catch this error in alameda:
+  //require([], function() {}).catch(function(err) {});
+});
+```
+
 ## Running tests
 
 The tests are pulled from almond and requirejs. All tests should be served

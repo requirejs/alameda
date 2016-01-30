@@ -22,3 +22,4 @@ doh.registerUrl("specialDeps", "../specialDeps/specialDeps.html");
 doh.registerUrl("hasOwnPropertyTests", "../hasOwnProperty/hasOwnProperty.html");
 doh.registerUrl("dataMainBaseUrl", "../dataMainBaseUrl/dataMainBaseUrl.html");
 doh.registerUrl("emptyRequire", "../emptyRequire/emptyRequire.html");
+doh.registerUrl("promiseRequire", "../promiseRequire/promiseRequire.html");

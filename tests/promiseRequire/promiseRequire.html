@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>alameda: promise from require</title>
+    <script src="../doh/runner.js"></script>
+    <script src="../doh/_browserRunner.js"></script>
+    <script src="../../alameda.js"></script>
+    <script>
+    var doneCount = 0;
+    var doneMax = 5;
+    var master = new doh.Deferred();
+    function done(err) {
+        if (err) {
+          return master.errback(err);
+        }
+
+        doneCount += 1;
+        if (doneCount === doneMax) {
+            master.callback(true);
+        }
+    }
+
+    // then with no initial callback.
+    require(['app'], function(app) {
+        doh.is('app', app.name);
+        doh.is('bar', app.bar.name);
+        return 'whatevs';
+    }).then(function(value) {
+        doh.is('whatevs', value);
+        done();
+    });
+
+    // then with no initial callback.
+    require(['app']).then(function(mods) {
+        var app = mods[0];
+        doh.is('app', app.name);
+        doh.is('bar', app.bar.name);
+        done();
+    });
+
+
+    // then with no initial callback.
+    require(['app'], function(app) {
+        doh.is('app', app.name);
+        doh.is('bar', app.bar.name);
+        throw new Error('Error inside a callback');
+    }).then(function(value) {
+        console.error('WHAT 1', value);
+        done(value);
+    }, function(err) {
+        doh.is(true, !!err);
+        done();
+    });
+
+    // then with no initial callback.
+    require(['app'], function(app) {
+        doh.is('app', app.name);
+        doh.is('bar', app.bar.name);
+        throw new Error('Error inside a callback');
+    }, function (err) {
+        console.error('WHAT 2: ', err);
+        done(err);
+    }).then(function(value) {
+        console.error('WHAT 3', value);
+        done(value);
+    }, function(err) {
+        doh.is(true, !!err);
+        done();
+    });
+
+    // catch usage.
+    require(['app'], function(app) {
+        doh.is('app', app.name);
+        doh.is('bar', app.bar.name);
+        throw new Error('Error inside a callback');
+    }).catch(function(err) {
+        doh.is(true, !!err);
+        done();
+    });
+
+    //Register the test
+    doh.register(
+        "promiseRequire",
+        [
+            {
+                name: "promiseRequire",
+                timeout: 3000,
+                runTest: function () {
+                    return master;
+                }
+            }
+        ]
+    );
+    doh.run();
+    </script>
+</head>
+<body>
+    <h1>alameda: promise from require</h1>
+
+    <p>Test require([]) returning a promise.
+    <a href="https://github.com/requirejs/alameda/issues/8">More info</a>.</p>
+
+    <p>Check console for messages</p>
+</body>
+</html>
