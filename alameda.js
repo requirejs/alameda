@@ -707,7 +707,7 @@ var requirejs, require, define;
                 };
 
         function callPlugin(plugin, map, relName) {
-            plugin.load(map.n, makeRequire(relName), makeLoad(map.id), {});
+            plugin.load(map.n, makeRequire(relName), makeLoad(map.id), config);
         }
 
         callDep = function (map, relName) {

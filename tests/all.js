@@ -9,6 +9,7 @@ doh.registerUrl("mapConfigSpecificity", "../mapConfig/mapConfigSpecificity.html"
 doh.registerUrl("mapConfigPlugin", "../mapConfig/mapConfigPlugin.html");
 doh.registerUrl("plugins", "../plugins/plugins.html");
 doh.registerUrl("pluginsMapSameName", "../plugins/pluginMapSameName/pluginMapSameName.html");
+doh.registerUrl("pluginsConfig", "../plugins/pluginsConfig/pluginsConfig.html");
 doh.registerUrl("text", "../plugins/text.html");
 doh.registerUrl("coffee", "../plugins/coffee.html");
 doh.registerUrl("shim", "../shim/shim.html");
