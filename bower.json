@@ -19,7 +19,6 @@
   "description": "AMD loader, like requirejs, but with promises and for modern browsers",
   "main": "alameda.js",
   "license": [
-    "BSD-3-Clause",
     "MIT"
   ]
 }

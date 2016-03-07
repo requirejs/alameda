@@ -96,7 +96,7 @@ a web browser.
 
 To run the requirejs tests, first make sure the following projects have been cloned and are **siblings** to the the alameda repo:
 
-* https://github.com/jrburke/requirejs
+* https://github.com/requirejs/requirejs
 * https://github.com/requirejs/domReady
 * https://github.com/requirejs/text
 * https://github.com/requirejs/i18n
