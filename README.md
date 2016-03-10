@@ -79,6 +79,13 @@ requirejs.config({
 
 If you pass a function for the `defaultErrback` value, then that will be used instead of the default "delayedError" handler used by alameda to surface the error.
 
+## License
+
+MIT
+
+## Code of Conduct
+
+[jQuery Foundation Code of Conduct](https://jquery.org/conduct/).
 
 ## Running tests
 
