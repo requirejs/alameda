@@ -28,6 +28,11 @@ var requirejs, require, define;
     return;
   }
 
+  // Could match something like ')//comment', do not lose the prefix to comment.
+  function commentReplace(match, multi, multiText, singlePrefix) {
+    return singlePrefix || '';
+  }
+
   function hasProp(obj, prop) {
     return hasOwn.call(obj, prop);
   }
@@ -412,14 +417,13 @@ var requirejs, require, define;
 
           // Join the path parts together, then figure out if baseUrl is needed.
           url = syms.join('/');
-          url += (ext || (/^data\:|\?/.test(url) || skipExt ? '' : '.js'));
+          url += (ext || (/^data\:|^blob\:|\?/.test(url) || skipExt ? '' : '.js'));
           url = (url.charAt(0) === '/' ||
                 url.match(/^[\w\+\.\-]+:/) ? '' : config.baseUrl) + url;
         }
 
-        return config.urlArgs ? url +
-                    ((url.indexOf('?') === -1 ? '?' : '&') +
-                     config.urlArgs) : url;
+        return config.urlArgs && !/^blob\:/.test(url) ?
+               url + config.urlArgs(moduleName, url) : url;
       };
 
       /**
@@ -993,7 +997,7 @@ var requirejs, require, define;
           // but only if there are function args.
           factory
             .toString()
-            .replace(commentRegExp, '')
+            .replace(commentRegExp, commentReplace)
             .replace(cjsRequireRegExp, function (match, dep) {
               deps.push(dep);
             });
@@ -1075,6 +1079,14 @@ var requirejs, require, define;
         if (cfg.baseUrl.charAt(cfg.baseUrl.length - 1) !== '/') {
           cfg.baseUrl += '/';
         }
+      }
+
+      // Convert old style urlArgs string to a function.
+      if (typeof cfg.urlArgs === 'string') {
+        var urlArgs = cfg.urlArgs;
+        cfg.urlArgs = function(id, url) {
+          return (url.indexOf('?') === -1 ? '?' : '&') + urlArgs;
+        };
       }
 
       // Save off the paths and packages since they require special processing,
@@ -1217,7 +1229,11 @@ var requirejs, require, define;
       // like a module name.
       dataMain = dataMain.replace(jsSuffixRegExp, '');
 
-      if (!bootstrapConfig || !bootstrapConfig.baseUrl) {
+      // Set final baseUrl if there is not already an explicit one,
+      // but only do so if the data-main value is not a loader plugin
+      // module ID.
+      if ((!bootstrapConfig || !bootstrapConfig.baseUrl) &&
+          dataMain.indexOf('!') === -1) {
         // Pull off the directory of data-main for use as the
         // baseUrl.
         src = dataMain.split('/');
