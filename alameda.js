@@ -1,5 +1,5 @@
 /**
- * @license alameda 0.3.2 Copyright jQuery Foundation and other contributors.
+ * @license alameda 1.0.0 Copyright jQuery Foundation and other contributors.
  * Released under MIT license, http://github.com/requirejs/alameda/LICENSE
  */
 // Going sloppy because loader plugin execs may depend on non-strict execution.

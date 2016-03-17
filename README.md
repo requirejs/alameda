@@ -17,6 +17,8 @@ The r.js optimizer works well with alameda-based projects.
 
 ## Install
 
+[Latest release information](https://github.com/requirejs/alameda/releases)
+
 If using a package manager:
 
 ```
