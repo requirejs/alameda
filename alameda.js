@@ -13,19 +13,29 @@ var requirejs, require, define;
   }
 
   var topReq, dataMain, src, subPath,
+    setTimeout, hasOwn, slice,
     bootstrapConfig = requirejs || require,
-    hasOwn = Object.prototype.hasOwnProperty,
     contexts = {},
     queue = [],
     currDirRegExp = /^\.\//,
     urlRegExp = /^\/|\:|\?|\.js$/,
     commentRegExp = /(\/\*([\s\S]*?)\*\/|([^:]|^)\/\/(.*)$)/mg,
     cjsRequireRegExp = /[^.]\s*require\s*\(\s*["']([^'"\s]+)["']\s*\)/g,
-    jsSuffixRegExp = /\.js$/,
-    slice = Array.prototype.slice;
+    jsSuffixRegExp = /\.js$/;
 
   if (typeof requirejs === 'function') {
     return;
+  }
+
+  // Recover potentially overridden window methods from a nested browsing context
+  function cacheNativeFnReferences() {
+    var iframe = document.createElement('iframe');
+    iframe.sandbox = 'allow-same-origin';
+    document.documentElement.appendChild(iframe);
+    hasOwn     = iframe.contentWindow.Object.prototype.hasOwn;
+    setTimeout = iframe.contentWindow.setTimeout;
+    slice      = iframe.contentWindow.Array.prototype.slice;
+    iframe.remove();
   }
 
   // Could match something like ')//comment', do not lose the prefix to comment.
@@ -1192,6 +1202,8 @@ var requirejs, require, define;
 
     return req;
   }
+
+  cacheNativeFnReferences();
 
   requirejs = topReq = newContext('_');
 
