@@ -19,7 +19,7 @@ var requirejs, require, define;
     queue = [],
     currDirRegExp = /^\.\//,
     urlRegExp = /^\/|\:|\?|\.js$/,
-    commentRegExp = /(\/\*([\s\S]*?)\*\/|([^:]|^)\/\/(.*)$)/mg,
+    commentRegExp = /\/\*[\s\S]*?\*\/|([^:"'=]|^)\/\/.*$/mg,
     cjsRequireRegExp = /[^.]\s*require\s*\(\s*["']([^'"\s]+)["']\s*\)/g,
     jsSuffixRegExp = /\.js$/,
     slice = Array.prototype.slice;
@@ -29,7 +29,7 @@ var requirejs, require, define;
   }
 
   // Could match something like ')//comment', do not lose the prefix to comment.
-  function commentReplace(match, multi, multiText, singlePrefix) {
+  function commentReplace(match, singlePrefix) {
     return singlePrefix || '';
   }
 
