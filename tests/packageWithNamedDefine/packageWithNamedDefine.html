@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>alameda: packageWithNamedDefine Test</title>
+    <script type="text/javascript" src="../doh/runner.js"></script>
+    <script type="text/javascript" src="../doh/_browserRunner.js"></script>
+    <script type="text/javascript" src="../../alameda.js"></script>
+    <script type="text/javascript">
+        requirejs.config({
+            packages: [{
+                name: 'packageName',
+                main: 'packageName',
+                location: 'packageName/src'
+            }]
+        });
+
+        require(['packageName'], function(packageName){
+            doh.register(
+                'packageWithNamedDefine',
+                [
+                    function packageWithNamedDefine(t){
+                        t.is('xyz', packageName);
+                    }
+                ]
+            );
+            doh.run();
+        });
+    </script>
+</head>
+<body>
+    <h1>alameda: packageWithNamedDefine Test</h1>
+
+    <p>Test define with module name when configured via packages. More info:
+    <a href="https://github.com/requirejs/alameda/issues/22">22</a>.</p>
+
+    <p>Check console for messages</p>
+</body>
+</html>
