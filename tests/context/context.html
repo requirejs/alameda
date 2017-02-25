@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>alameda: Context Test</title>
+    <script src="../doh/runner.js"></script>
+    <script src="../doh/_browserRunner.js"></script>
+    <script src="../../alameda.js"></script>
+    <script>
+    	var fooContext = requirejs.config({ context: 'foo' });
+    	var fooContext2 = requirejs.config({ context: 'foo' });
+
+        doh.register(
+            'context',
+            [
+                function context(t){
+                    t.is(fooContext, fooContext2);
+                }
+            ]
+        );
+        doh.run();
+
+    </script>
+</head>
+<body>
+    <h1>alameda: Context Test</h1>
+    <p>Two requirejs.config calls to the same context should operate on the same context.
+        <a href="https://github.com/requirejs/alameda/issues/25">More info</a></p>
+    <p>Check console for messages</p>
+</body>
+</html>

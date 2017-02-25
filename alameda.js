@@ -1074,7 +1074,12 @@ var requirejs, require, define;
      */
     req.config = function (cfg) {
       if (cfg.context && cfg.context !== contextName) {
-        return newContext(cfg.context).config(cfg);
+        var existingContext = getOwn(contexts, cfg.context);
+        if (existingContext) {
+          return existingContext.req.config(cfg);
+        } else {
+          return newContext(cfg.context).config(cfg);
+        }
       }
 
       // Since config changed, mapCache may not be valid any more.
@@ -1187,7 +1192,8 @@ var requirejs, require, define;
       defined: defined,
       waiting: waiting,
       config: config,
-      deferreds: deferreds
+      deferreds: deferreds,
+      req: req
     };
 
     contexts[contextName] = context;

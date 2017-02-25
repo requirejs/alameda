@@ -14,6 +14,7 @@ doh.registerUrl("text", "../plugins/text.html");
 doh.registerUrl("coffee", "../plugins/coffee.html");
 doh.registerUrl("shim", "../shim/shim.html");
 doh.registerUrl("insertRequire", "../insertRequire/insertRequire.html", 4000);
+doh.registerUrl("context", "../context/context.html");
 doh.registerUrl("circular", "../circular/circular.html", 4000);
 doh.registerUrl("circular414", "../circular/414/414.html", 4000);
 doh.registerUrl("circularTranspiler", "../circular/transpiler/transpiler.html", 4000);
