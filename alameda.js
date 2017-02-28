@@ -280,6 +280,12 @@ var requirejs, require, define;
             // Not our anon module, stop.
             break;
           }
+        } else if (anonId && anonId.indexOf(queue[i][0]) === 0) {
+          // Exception for modules that define their name explicitly and
+          // defined name coincides with package name
+          queue[i] = queue[i].slice(1);
+          queue[i].unshift(anonId);
+          anonId = undef;
         }
         args = queue.shift();
         id = args[0];
