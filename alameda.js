@@ -484,9 +484,9 @@ var requirejs, require, define;
         name = d.map.id;
 
       try {
-         ret = d.factory.apply(defined[name], d.values);
+        ret = context.execCb(name, d.factory, d.values, defined[name]);
       } catch(err) {
-         return reject(d, err);
+        return reject(d, err);
       }
 
       if (name) {
@@ -1193,7 +1193,10 @@ var requirejs, require, define;
       waiting: waiting,
       config: config,
       deferreds: deferreds,
-      req: req
+      req: req,
+      execCb: function execCb(name, callback, args, exports) {
+        return callback.apply(exports, args);
+      }
     };
 
     contexts[contextName] = context;
