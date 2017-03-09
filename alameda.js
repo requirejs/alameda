@@ -28,6 +28,8 @@ var requirejs, require, define;
     return;
   }
 
+  var asap = Promise.resolve(undefined);
+
   // Could match something like ')//comment', do not lose the prefix to comment.
   function commentReplace(match, singlePrefix) {
     return singlePrefix || '';
@@ -702,7 +704,16 @@ var requirejs, require, define;
 
           script.src = url;
 
-          document.head.appendChild(script);
+          // If the script is cached, IE10 executes the script body and the
+          // onload handler synchronously here.  That's a spec violation,
+          // so be sure to do this asynchronously.
+          if (document.documentMode === 10) {
+            asap.then(function() {
+              document.head.appendChild(script);
+            });
+          } else {
+            document.head.appendChild(script);
+          }
         };
 
     function callPlugin(plugin, map, relName) {
