@@ -1,6 +1,7 @@
 
 doh.registerUrl("simple", "../simple.html");
 doh.registerUrl("defineDouble", "../defineDouble/defineDouble.html");
+doh.registerUrl("defineAndRequire", "../defineAndRequire/defineAndRequire.html");
 doh.registerUrl("moduleConfig", "../moduleConfig/moduleConfig.html");
 doh.registerUrl("mapConfig", "../mapConfig/mapConfig.html");
 doh.registerUrl("mapConfigStar", "../mapConfig/mapConfigStar.html");
