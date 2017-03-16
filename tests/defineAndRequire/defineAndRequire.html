@@ -10,7 +10,7 @@
             return 1;
         });
         var a = require('a');
-        doh.register('defineAndRequire', [function defineAndRequire() {
+        doh.register('defineAndRequire', [function defineAndRequire(t) {
             t.is(1, a);
         }]);
         doh.run();

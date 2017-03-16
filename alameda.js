@@ -318,7 +318,11 @@ var requirejs, require, define;
           // deps arg is the module name, and second arg (if passed)
           // is just the relName.
           // Normalize module name, if it contains . or ..
-          name = makeMap(deps, relName, true).id;
+          var map = makeMap(deps, relName, true);
+          name = map.id;
+          if (hasProp(waiting, name)) {
+	      callDep(map, relName);
+          }
           if (!hasProp(defined, name)) {
             throw new Error('Not loaded: ' + name);
           }
