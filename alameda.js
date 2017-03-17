@@ -692,6 +692,7 @@ var requirejs, require, define;
               // retry
               pathConfig.shift();
               d.map = makeMap(id);
+	      d.map.url = req.nameToUrl(id);
               load(d.map);
             } else {
               err = new Error('Load failed: ' + id + ': ' + script.src);
@@ -960,11 +961,13 @@ var requirejs, require, define;
     }
 
     main = function (name, deps, factory, errback, relName) {
-      // Only allow main calling once per module.
-      if (name && hasProp(calledDefine, name)) {
-        return;
+      if (name) {
+        // Only allow main calling once per module.
+        if (hasProp(calledDefine, name)) {
+          return;
+        }
+        calledDefine[name] = true;
       }
-      calledDefine[name] = true;
 
       var d = getDefer(name);
 
