@@ -113,7 +113,7 @@ var requirejs, require, define;
       },
       mapCache = {},
       requireDeferreds = [],
-      deferreds = {},
+      deferreds = Object.create(null),
       calledDefine = {},
       calledPlugin = {},
       loadCount = 0,
@@ -286,7 +286,7 @@ var requirejs, require, define;
         i -= 1;
 
         if (!(id in defined) && !(id in waiting)) {
-          if (hasProp(deferreds, id)) {
+          if (id in deferreds) {
             main.apply(undef, args);
           } else {
             waiting[id] = args;
@@ -448,7 +448,7 @@ var requirejs, require, define;
 
       req.specified = function (id) {
         id = makeMap(id, relName, true).id;
-        return id in defined || hasProp(deferreds, id);
+        return id in defined || id in deferreds;
       };
 
       return req;
@@ -551,7 +551,7 @@ var requirejs, require, define;
     function getDefer(name, calculatedMap) {
       var d;
       if (name) {
-        d = hasProp(deferreds, name) && deferreds[name];
+        d = (name in deferreds) && deferreds[name];
         if (!d) {
           d = deferreds[name] = makeDefer(name, calculatedMap);
         }
@@ -684,7 +684,7 @@ var requirejs, require, define;
             loadCount -= 1;
             var err,
               pathConfig = getOwn(config.paths, id),
-              d = getOwn(deferreds, id);
+              d = deferreds[id];
             if (pathConfig && Array.isArray(pathConfig) &&
                 pathConfig.length > 1) {
               script.parentNode.removeChild(script);
@@ -718,7 +718,7 @@ var requirejs, require, define;
         args = waiting[name];
         delete waiting[name];
         main.apply(undef, args);
-      } else if (!hasProp(deferreds, name)) {
+      } else if (!(name in deferreds)) {
         if (map.pr) {
           // If a bundles config, then just load that file instead to
           // resolve the plugin, as it is built into that bundle.
@@ -922,11 +922,12 @@ var requirejs, require, define;
       // scripts, then just try back later.
       if (expired) {
         // If wait time expired, throw error of unloaded modules.
-        eachProp(deferreds, function (d) {
-          if (!d.finished) {
-            notFinished.push(d.map.id);
+        for (var mid in deferreds) {
+          var thisd = deferreds[mid];
+          if (!thisd.finished) {
+            notFinished.push(thisd.map.id);
           }
-        });
+        }
         err = new Error('Timeout for modules: ' + notFinished);
         err.requireModules = notFinished;
         req.onError(err);
