@@ -97,7 +97,7 @@ var requirejs, require, define;
 
   function newContext(contextName) {
     var req, main, makeMap, callDep, handlers, checkingLater, load, context,
-      defined = {},
+      defined = Object.create(null),
       waiting = {},
       config = {
         // Defaults. Do not set a default for map
@@ -285,7 +285,7 @@ var requirejs, require, define;
         id = args[0];
         i -= 1;
 
-        if (!hasProp(defined, id) && !hasProp(waiting, id)) {
+        if (!(id in defined) && !hasProp(waiting, id)) {
           if (hasProp(deferreds, id)) {
             main.apply(undef, args);
           } else {
@@ -443,12 +443,12 @@ var requirejs, require, define;
       };
 
       req.defined = function (id) {
-        return hasProp(defined, makeMap(id, relName, true).id);
+        return makeMap(id, relName, true).id in defined;
       };
 
       req.specified = function (id) {
         id = makeMap(id, relName, true).id;
-        return hasProp(defined, id) || hasProp(deferreds, id);
+        return id in defined || hasProp(deferreds, id);
       };
 
       return req;
@@ -795,7 +795,7 @@ var requirejs, require, define;
 
       if (prefix) {
         prefix = normalize(prefix, relName, applyMap);
-        plugin = hasProp(defined, prefix) && defined[prefix];
+        plugin = (prefix in defined) && defined[prefix];
       }
 
       // Normalize according
