@@ -98,7 +98,7 @@ var requirejs, require, define;
   function newContext(contextName) {
     var req, main, makeMap, callDep, handlers, checkingLater, load, context,
       defined = Object.create(null),
-      waiting = {},
+      waiting = Object.create(null),
       config = {
         // Defaults. Do not set a default for map
         // config to speed up normalize(), which
@@ -285,7 +285,7 @@ var requirejs, require, define;
         id = args[0];
         i -= 1;
 
-        if (!(id in defined) && !hasProp(waiting, id)) {
+        if (!(id in defined) && !(id in waiting)) {
           if (hasProp(deferreds, id)) {
             main.apply(undef, args);
           } else {
@@ -714,7 +714,7 @@ var requirejs, require, define;
         name = map.id,
         shim = config.shim[name];
 
-      if (hasProp(waiting, name)) {
+      if (name in waiting) {
         args = waiting[name];
         delete waiting[name];
         main.apply(undef, args);
