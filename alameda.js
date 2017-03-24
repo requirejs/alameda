@@ -111,10 +111,10 @@ var requirejs, require, define;
         shim: {},
         config: {}
       },
-      mapCache = {},
+      mapCache = Object.create(null),
       requireDeferreds = [],
       deferreds = Object.create(null),
-      calledDefine = {},
+      calledDefine = Object.create(null),
       calledPlugin = {},
       loadCount = 0,
       startTime = (new Date()).getTime(),
@@ -319,7 +319,7 @@ var requirejs, require, define;
           // is just the relName.
           // Normalize module name, if it contains . or ..
           name = makeMap(deps, relName, true).id;
-          if (!hasProp(defined, name)) {
+          if (!(name in defined)) {
             throw new Error('Not loaded: ' + name);
           }
           return defined[name];
@@ -789,7 +789,7 @@ var requirejs, require, define;
       prefix = parts[0];
       name = parts[1];
 
-      if (!prefix && hasProp(mapCache, cacheKey)) {
+      if (!prefix && (cacheKey in mapCache)) {
         return mapCache[cacheKey];
       }
 
@@ -962,7 +962,7 @@ var requirejs, require, define;
 
     main = function (name, deps, factory, errback, relName) {
       // Only allow main calling once per module.
-      if (name && hasProp(calledDefine, name)) {
+      if (name && (name in calledDefine)) {
         return;
       }
       calledDefine[name] = true;
@@ -1084,7 +1084,7 @@ var requirejs, require, define;
       }
 
       // Since config changed, mapCache may not be valid any more.
-      mapCache = {};
+      mapCache = Object.create(null);
 
       // Make sure the baseUrl ends in a slash.
       if (cfg.baseUrl) {
