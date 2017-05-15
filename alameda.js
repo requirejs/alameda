@@ -692,7 +692,9 @@ var requirejs, require, define;
               pathConfig.shift();
               var d = getDefer(id);
               d.map = makeMap(id);
-	      d.map.url = req.nameToUrl(id);
+              // mapCache will have returned previous map value, update the
+              // url, which will also update mapCache value.
+              d.map.url = req.nameToUrl(id);
               load(d.map);
             } else {
               err = new Error('Load failed: ' + id + ': ' + script.src);
