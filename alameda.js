@@ -683,14 +683,14 @@ var requirejs, require, define;
           script.addEventListener('error', function () {
             loadCount -= 1;
             var err,
-              pathConfig = getOwn(config.paths, id),
-              d = getOwn(deferreds, id);
+              pathConfig = getOwn(config.paths, id);
             if (pathConfig && Array.isArray(pathConfig) &&
                 pathConfig.length > 1) {
               script.parentNode.removeChild(script);
               // Pop off the first array value, since it failed, and
               // retry
               pathConfig.shift();
+              var d = getDefer(id);
               d.map = makeMap(id);
               load(d.map);
             } else {
