@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>alameda: preserveDeps Test</title>
+    <script type="text/javascript" src="../doh/runner.js"></script>
+    <script type="text/javascript" src="../doh/_browserRunner.js"></script>
+    <script type="text/javascript" src="../../alameda.js"></script>
+    <script type="text/javascript">
+		define('a', function(){});
+		define('b', function(){});
+
+		var x = ['a', 'b'];
+
+		require(x, function() {
+			doh.register(
+                'preserveDeps',
+                [
+                    function preserveDeps(t){
+                        t.is('a', x[0]);
+                        t.is('b', x[1]);
+                    }
+                ]
+            );
+            doh.run();
+		});
+    </script>
+</head>
+<body>
+    <h1>alameda: preserveDeps Test</h1>
+
+    <p>alameda should not mutate deps passed to it. More info:
+    <a href="https://github.com/requirejs/alameda/issues/35">35</a>.</p>
+
+    <p>Check console for messages</p>
+</body>
+</html>

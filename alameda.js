@@ -993,6 +993,9 @@ var requirejs, require, define;
         deps = [];
       }
 
+      // Create fresh array instead of modifying passed in value.
+      deps = deps ? slice.call(deps, 0) : null;
+
       if (!errback) {
         if (hasProp(config, 'defaultErrback')) {
           if (config.defaultErrback) {
