@@ -81,6 +81,39 @@ requirejs.config({
 
 If you pass a function for the `defaultErrback` value, then that will be used instead of the default "delayedError" handler used by alameda to surface the error.
 
+## onResourceLoad
+
+requirejs supports a hook into its internals, [onResourceLoad](https://github.com/requirejs/requirejs/wiki/Internal-API:-onResourceLoad). alameda supports an onResourceLoad function too, but the arguments passed to the function are objects that have different property names than the ones in requirejs.
+
+This is the general signature, which is the same between alameda and requirejs:
+
+```javascript
+alameda.onResourceLoad = function (context, map, depArray) {};
+```
+
+The differences between property names in the different argument objects is described below. See the [onResourceLoad page](https://github.com/requirejs/requirejs/wiki/Internal-API:-onResourceLoad) for the description of the arguments.
+
+### context
+
+| alameda | requirejs |
+| ------- | --------- |
+| `id` | `contextName` |
+
+### map
+
+| alameda | requirejs |
+| ------- | --------- |
+| `pr` | `prefix` |
+| `n` | `name` |
+| n/a | `parentMap` |
+| `url` | `url` |
+| n/a | `originalName` |
+| `id` | `fullName` |
+
+### depArray
+
+An array of `map` objects with the same properties as the `map` listing above.
+
 ## License
 
 MIT
