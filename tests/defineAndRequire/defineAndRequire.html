@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>alameda: Define And Require Test</title>
+    <script src="../doh/runner.js"></script>
+    <script src="../doh/_browserRunner.js"></script>
+    <script src="../../alameda.js"></script>
+    <script>
+        define('a', [], function () {
+            return 1;
+        });
+        var a = require('a');
+        doh.register('defineAndRequire', [function defineAndRequire(t) {
+            t.is(1, a);
+        }]);
+        doh.run();
+    </script>
+</head>
+<body>
+    <h1>alameda: Define And Require Test</h1>
+    <p>Make sure we can define and require immediately.</p>
+    <p>Check console for messages</p>
+</body>
+</html>
