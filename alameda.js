@@ -1,6 +1,6 @@
 /**
  * @license alameda 1.1.2 Copyright jQuery Foundation and other contributors.
- * Released under MIT license, http://github.com/requirejs/alameda/LICENSE
+ * Released under MIT license, https://github.com/requirejs/alameda/blob/master/LICENSE
  */
 // Going sloppy because loader plugin execs may depend on non-strict execution.
 /*jslint sloppy: true, nomen: true, regexp: true */
@@ -27,6 +27,8 @@ var requirejs, require, define;
   if (typeof requirejs === 'function') {
     return;
   }
+
+  var asap = Promise.resolve(undefined);
 
   // Could match something like ')//comment', do not lose the prefix to comment.
   function commentReplace(match, singlePrefix) {
@@ -484,9 +486,9 @@ var requirejs, require, define;
         name = d.map.id;
 
       try {
-         ret = d.factory.apply(defined[name], d.values);
+        ret = context.execCb(name, d.factory, d.values, defined[name]);
       } catch(err) {
-         return reject(d, err);
+        return reject(d, err);
       }
 
       if (name) {
@@ -683,15 +685,18 @@ var requirejs, require, define;
           script.addEventListener('error', function () {
             loadCount -= 1;
             var err,
-              pathConfig = getOwn(config.paths, id),
-              d = deferreds[id];
+              pathConfig = getOwn(config.paths, id);
             if (pathConfig && Array.isArray(pathConfig) &&
                 pathConfig.length > 1) {
               script.parentNode.removeChild(script);
               // Pop off the first array value, since it failed, and
               // retry
               pathConfig.shift();
+              var d = getDefer(id);
               d.map = makeMap(id);
+              // mapCache will have returned previous map value, update the
+              // url, which will also update mapCache value.
+              d.map.url = req.nameToUrl(id);
               load(d.map);
             } else {
               err = new Error('Load failed: ' + id + ': ' + script.src);
@@ -702,7 +707,16 @@ var requirejs, require, define;
 
           script.src = url;
 
-          document.head.appendChild(script);
+          // If the script is cached, IE10 executes the script body and the
+          // onload handler synchronously here.  That's a spec violation,
+          // so be sure to do this asynchronously.
+          if (document.documentMode === 10) {
+            asap.then(function() {
+              document.head.appendChild(script);
+            });
+          } else {
+            document.head.appendChild(script);
+          }
         };
 
     function callPlugin(plugin, map, relName) {
@@ -961,11 +975,13 @@ var requirejs, require, define;
     }
 
     main = function (name, deps, factory, errback, relName) {
-      // Only allow main calling once per module.
-      if (name && (name in calledDefine)) {
-        return;
+      if (name) {
+        // Only allow main calling once per module.
+        if (name in calledDefine) {
+          return;
+        }
+        calledDefine[name] = true;
       }
-      calledDefine[name] = true;
 
       var d = getDefer(name);
 
@@ -977,6 +993,9 @@ var requirejs, require, define;
         factory = deps;
         deps = [];
       }
+
+      // Create fresh array instead of modifying passed in value.
+      deps = deps ? slice.call(deps, 0) : null;
 
       if (!errback) {
         if (hasProp(config, 'defaultErrback')) {
@@ -1194,7 +1213,10 @@ var requirejs, require, define;
       waiting: waiting,
       config: config,
       deferreds: deferreds,
-      req: req
+      req: req,
+      execCb: function execCb(name, callback, args, exports) {
+        return callback.apply(exports, args);
+      }
     };
 
     contexts[contextName] = context;
