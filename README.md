@@ -56,7 +56,7 @@ In requirejs and alameda, with this sort of call, the errback will be called if 
 
 ```javascript
 require(['a', 'b'], function(a, b) {
-  // succes callback
+  // success callback
 }, function(err) {
   // errback, called if 'a', 'b' do not load, or
   // if the success callback is called.
