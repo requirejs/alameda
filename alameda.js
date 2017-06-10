@@ -1,6 +1,6 @@
 /**
  * @license alameda 1.1.2 Copyright jQuery Foundation and other contributors.
- * Released under MIT license, http://github.com/requirejs/alameda/LICENSE
+ * Released under MIT license, https://github.com/requirejs/alameda/blob/master/LICENSE
  */
 // Going sloppy because loader plugin execs may depend on non-strict execution.
 /*jslint sloppy: true, nomen: true, regexp: true */
