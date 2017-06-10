@@ -99,8 +99,8 @@ var requirejs, require, define;
 
   function newContext(contextName) {
     var req, main, makeMap, callDep, handlers, checkingLater, load, context,
-      defined = {},
-      waiting = {},
+      defined = Object.create(null),
+      waiting = Object.create(null),
       config = {
         // Defaults. Do not set a default for map
         // config to speed up normalize(), which
@@ -113,10 +113,10 @@ var requirejs, require, define;
         shim: {},
         config: {}
       },
-      mapCache = {},
+      mapCache = Object.create(null),
       requireDeferreds = [],
-      deferreds = {},
-      calledDefine = {},
+      deferreds = Object.create(null),
+      calledDefine = Object.create(null),
       calledPlugin = {},
       loadCount = 0,
       startTime = (new Date()).getTime(),
@@ -287,8 +287,8 @@ var requirejs, require, define;
         id = args[0];
         i -= 1;
 
-        if (!hasProp(defined, id) && !hasProp(waiting, id)) {
-          if (hasProp(deferreds, id)) {
+        if (!(id in defined) && !(id in waiting)) {
+          if (id in deferreds) {
             main.apply(undef, args);
           } else {
             waiting[id] = args;
@@ -321,7 +321,7 @@ var requirejs, require, define;
           // is just the relName.
           // Normalize module name, if it contains . or ..
           name = makeMap(deps, relName, true).id;
-          if (!hasProp(defined, name)) {
+          if (!(name in defined)) {
             throw new Error('Not loaded: ' + name);
           }
           return defined[name];
@@ -445,12 +445,12 @@ var requirejs, require, define;
       };
 
       req.defined = function (id) {
-        return hasProp(defined, makeMap(id, relName, true).id);
+        return makeMap(id, relName, true).id in defined;
       };
 
       req.specified = function (id) {
         id = makeMap(id, relName, true).id;
-        return hasProp(defined, id) || hasProp(deferreds, id);
+        return id in defined || id in deferreds;
       };
 
       return req;
@@ -553,7 +553,7 @@ var requirejs, require, define;
     function getDefer(name, calculatedMap) {
       var d;
       if (name) {
-        d = hasProp(deferreds, name) && deferreds[name];
+        d = (name in deferreds) && deferreds[name];
         if (!d) {
           d = deferreds[name] = makeDefer(name, calculatedMap);
         }
@@ -728,11 +728,11 @@ var requirejs, require, define;
         name = map.id,
         shim = config.shim[name];
 
-      if (hasProp(waiting, name)) {
+      if (name in waiting) {
         args = waiting[name];
         delete waiting[name];
         main.apply(undef, args);
-      } else if (!hasProp(deferreds, name)) {
+      } else if (!(name in deferreds)) {
         if (map.pr) {
           // If a bundles config, then just load that file instead to
           // resolve the plugin, as it is built into that bundle.
@@ -803,13 +803,13 @@ var requirejs, require, define;
       prefix = parts[0];
       name = parts[1];
 
-      if (!prefix && hasProp(mapCache, cacheKey)) {
+      if (!prefix && (cacheKey in mapCache)) {
         return mapCache[cacheKey];
       }
 
       if (prefix) {
         prefix = normalize(prefix, relName, applyMap);
-        plugin = hasProp(defined, prefix) && defined[prefix];
+        plugin = (prefix in defined) && defined[prefix];
       }
 
       // Normalize according
@@ -936,11 +936,12 @@ var requirejs, require, define;
       // scripts, then just try back later.
       if (expired) {
         // If wait time expired, throw error of unloaded modules.
-        eachProp(deferreds, function (d) {
-          if (!d.finished) {
-            notFinished.push(d.map.id);
+        for (var mid in deferreds) {
+          var thisd = deferreds[mid];
+          if (!thisd.finished) {
+            notFinished.push(thisd.map.id);
           }
-        });
+        }
         err = new Error('Timeout for modules: ' + notFinished);
         err.requireModules = notFinished;
         req.onError(err);
@@ -976,7 +977,7 @@ var requirejs, require, define;
     main = function (name, deps, factory, errback, relName) {
       if (name) {
         // Only allow main calling once per module.
-        if (hasProp(calledDefine, name)) {
+        if (name in calledDefine) {
           return;
         }
         calledDefine[name] = true;
@@ -1102,7 +1103,7 @@ var requirejs, require, define;
       }
 
       // Since config changed, mapCache may not be valid any more.
-      mapCache = {};
+      mapCache = Object.create(null);
 
       // Make sure the baseUrl ends in a slash.
       if (cfg.baseUrl) {
