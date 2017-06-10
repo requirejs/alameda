@@ -43,6 +43,10 @@ var requirejs, require, define;
     return obj && hasProp(obj, prop) && obj[prop];
   }
 
+  function obj() {
+    return Object.create(null);
+  }
+
   /**
    * Cycles over properties in an object and calls a function for each
    * property value. If the function returns a truthy value, then the
@@ -99,8 +103,8 @@ var requirejs, require, define;
 
   function newContext(contextName) {
     var req, main, makeMap, callDep, handlers, checkingLater, load, context,
-      defined = Object.create(null),
-      waiting = Object.create(null),
+      defined = obj(),
+      waiting = obj(),
       config = {
         // Defaults. Do not set a default for map
         // config to speed up normalize(), which
@@ -113,17 +117,17 @@ var requirejs, require, define;
         shim: {},
         config: {}
       },
-      mapCache = Object.create(null),
+      mapCache = obj(),
       requireDeferreds = [],
-      deferreds = Object.create(null),
-      calledDefine = Object.create(null),
-      calledPlugin = {},
+      deferreds = obj(),
+      calledDefine = obj(),
+      calledPlugin = obj(),
       loadCount = 0,
       startTime = (new Date()).getTime(),
       errCount = 0,
-      trackedErrors = {},
-      urlFetched = {},
-      bundlesMap = {},
+      trackedErrors = obj(),
+      urlFetched = obj(),
+      bundlesMap = obj(),
       asyncResolve = Promise.resolve();
 
     /**
@@ -748,7 +752,7 @@ var requirejs, require, define;
 
               // Make sure to only call load once per resource. Many
               // calls could have been queued waiting for plugin to load.
-              if (!hasProp(calledPlugin, newId)) {
+              if (!(newId in calledPlugin)) {
                 calledPlugin[newId] = true;
                 if (shim && shim.deps) {
                   req(shim.deps, function () {
@@ -908,7 +912,7 @@ var requirejs, require, define;
     }
 
     function check(d) {
-      var err,
+      var err, mid, dfd,
         notFinished = [],
         waitInterval = config.waitSeconds * 1000,
         // It is possible to disable the wait interval by using waitSeconds 0.
@@ -936,10 +940,10 @@ var requirejs, require, define;
       // scripts, then just try back later.
       if (expired) {
         // If wait time expired, throw error of unloaded modules.
-        for (var mid in deferreds) {
-          var thisd = deferreds[mid];
-          if (!thisd.finished) {
-            notFinished.push(thisd.map.id);
+        for (mid in deferreds) {
+          dfd = deferreds[mid];
+          if (!dfd.finished) {
+            notFinished.push(dfd.map.id);
           }
         }
         err = new Error('Timeout for modules: ' + notFinished);
@@ -1103,7 +1107,7 @@ var requirejs, require, define;
       }
 
       // Since config changed, mapCache may not be valid any more.
-      mapCache = Object.create(null);
+      mapCache = obj();
 
       // Make sure the baseUrl ends in a slash.
       if (cfg.baseUrl) {
