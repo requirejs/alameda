@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>alameda: Errors Test</title>
+    <script type="text/javascript" src="../doh/runner.js"></script>
+    <script type="text/javascript" src="../doh/_browserRunner.js"></script>
+    <script src="../../alameda.js"></script>
+    <script type="text/javascript">
+      define('slowLoad', function() {
+        return {
+          load: function (name, req, onload, config) {
+            setTimeout(function() {
+              onload({
+                name: name
+              });
+            }, 10000);
+          }
+        }
+      });
+
+	    var master = new doh.Deferred(),
+          count = 0;
+
+      function done() {
+          count += 1;
+          if (count === 3) {
+              master.callback(true);
+          }
+      }
+
+      doh.register('timeoutErrors',
+          [{
+              name: 'timeoutErrors',
+              timeout: 2000,
+              runTest: function() {
+                return master;
+              }
+          }]
+      );
+      doh.run();
+
+      var req = requirejs.config({
+        waitSeconds: .0001
+      });
+
+      var onErrorCalls = 0;
+      req.onError = function(e){
+        onErrorCalls += 1;
+        doh.is(1, onErrorCalls);
+        doh.is(e.requireModules, ['slowLoad!foo']);
+        doh.is(e.requireType, 'timeout');
+
+        done();
+      };
+
+      req(['slowLoad!foo'],
+        function () {
+          doh.is(false, true);
+        },
+        function (err) {
+          doh.is(err.requireModules, ['slowLoad!foo']);
+          doh.is(err.requireType, 'timeout');
+          done();
+        }
+      );
+      req(
+        ['slowLoad!foo'],
+        function () {
+          doh.is(false, true);
+        },
+        function (err) {
+          doh.is(err.requireModules, ['slowLoad!foo']);
+          doh.is(err.requireType, 'timeout');
+          done();
+        }
+      );
+
+      req(
+        ['slowLoad!foo'],
+        function (a) {
+          doh.is(false, true);
+        }
+      );
+    </script>
+</head>
+<body>
+    <h1>alameda: Errors Test</h1>
+    <p>Tests that timeouts trigger errbacks if appropriate, require.onError if
+    no errback is provided.</p>
+    <p>Check console for messages</p>
+</body>
+</html>
