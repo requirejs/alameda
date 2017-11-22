@@ -534,7 +534,7 @@ var requirejs, require, define;
         d.resolve = resolve;
         d.reject = function(err) {
           if (!name) {
-          requireDeferreds.splice(requireDeferreds.indexOf(d), 1);
+            requireDeferreds.splice(requireDeferreds.indexOf(d), 1);
           }
           reject(err);
         };
@@ -601,14 +601,15 @@ var requirejs, require, define;
       }
 
       load.error = function (err) {
-        getDefer(id).reject(err);
+        reject(getDefer(id), err);
       };
 
       load.fromText = function (text, textAlt) {
         /*jslint evil: true */
         var d = getDefer(id),
           map = makeMap(makeMap(id).n),
-           plainId = map.id;
+          plainId = map.id,
+          execError;
 
         fromTextCalled = true;
 
@@ -634,8 +635,10 @@ var requirejs, require, define;
         try {
           req.exec(text);
         } catch (e) {
-          reject(d, new Error('fromText eval for ' + plainId +
-                  ' failed: ' + e));
+          execError = new Error('fromText eval for ' + plainId +
+                                ' failed: ' + e);
+          execError.requireType = 'fromtexteval';
+          reject(d, execError);
         }
 
         // Execute any waiting define created by the plainId
@@ -705,7 +708,8 @@ var requirejs, require, define;
             } else {
               err = new Error('Load failed: ' + id + ': ' + script.src);
               err.requireModules = [id];
-              getDefer(id).reject(err);
+              err.requireType = 'scripterror';
+              reject(getDefer(id), err);
             }
           }, false);
 
@@ -948,7 +952,10 @@ var requirejs, require, define;
         }
         err = new Error('Timeout for modules: ' + notFinished);
         err.requireModules = notFinished;
-        req.onError(err);
+        err.requireType = 'timeout';
+        notFinished.forEach(function (id) {
+          reject(getDefer(id), err);
+        });
       } else if (loadCount || requireDeferreds.length) {
         // Something is still waiting to load. Wait for it, but only
         // if a later check is not already scheduled. Using setTimeout
