@@ -81,6 +81,20 @@ requirejs.config({
 
 If you pass a function for the `defaultErrback` value, then that will be used instead of the default "delayedError" handler used by alameda to surface the error.
 
+## onError is context-specific
+
+When using contexts, in requirejs, all top level errors would bubble up to requirejs.onError, but in alameda, the context's onError is called instead. Example:
+
+```javascript
+var fooReq = requirejs.config({ context: 'foo' });
+requirejs.onError = function () { console.log('requirejs.onError'); };
+fooReq.onError = function () { console.log('fooReq.onError'); };
+
+fooReq(['nonexistent']);
+
+// In alameda, fooReq.onError() is called, in requirejs, requirejs.onError is called.
+```
+
 ## onResourceLoad
 
 requirejs supports a hook into its internals, [onResourceLoad](https://github.com/requirejs/requirejs/wiki/Internal-API:-onResourceLoad). alameda supports an onResourceLoad function too, but the arguments passed to the function are objects that have different property names than the ones in requirejs.
