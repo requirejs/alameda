@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>alameda: Simple Test</title>
+    <script type="text/javascript" src="../doh/runner.js"></script>
+    <script type="text/javascript" src="../doh/_browserRunner.js"></script>
+    <script src="../../alameda.js"></script>
+    <script type="text/javascript">
+        var nodeCreatedArgs = [];
+        requirejs.config({
+          onNodeCreated: function (node, config, id, url) {
+            nodeCreatedArgs.push([node, config, id, url]);
+          }
+        });
+
+        require(['a'], function(a) {
+          doh.register(
+              'onNodeCreated',
+              [
+                  function onNodeCreated(t){
+                      t.is('a', a.name);
+                      t.is('b', a.b.name);
+                      t.is(2, nodeCreatedArgs.length);
+
+                      var callOne = nodeCreatedArgs[0];
+                      t.is('a', callOne[0].getAttribute('data-requiremodule'));
+                      t.is(true, !!callOne[1].onNodeCreated);
+                      t.is('a', callOne[2]);
+                      t.is('./a.js', callOne[3]);
+
+                      var callTwo = nodeCreatedArgs[1];
+                      t.is('b', callTwo[0].getAttribute('data-requiremodule'));
+                      t.is(true, !!callTwo[1].onNodeCreated);
+                      t.is('b', callTwo[2]);
+                      t.is('./b.js', callTwo[3]);
+                  }
+              ]
+          );
+          doh.run();
+
+        });
+    </script>
+</head>
+<body>
+    <h1>alameda: onNodeCreated Test</h1>
+    <p>Check console for messages</p>
+</body>
+</html>

@@ -1,5 +1,5 @@
 /**
- * @license alameda 1.2.1 Copyright jQuery Foundation and other contributors.
+ * @license alameda 1.3.0 Copyright jQuery Foundation and other contributors.
  * Released under MIT license, https://github.com/requirejs/alameda/blob/master/LICENSE
  */
 // Going sloppy because loader plugin execs may depend on non-strict execution.
@@ -714,6 +714,10 @@ var requirejs, require, define;
           }, false);
 
           script.src = url;
+
+          if (config.onNodeCreated) {
+            config.onNodeCreated(script, config, id, url);
+          }
 
           // If the script is cached, IE10 executes the script body and the
           // onload handler synchronously here.  That's a spec violation,
