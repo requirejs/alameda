@@ -878,10 +878,10 @@ var requirejs, require, define;
           return (defined[name] = {});
         }
       },
-      module: function (name) {
+      module: function (name, url) {
         return {
           id: name,
-          uri: '',
+          uri: url || '',
           exports: handlers.exports(name),
           config: function () {
             return getOwn(config.config, name) || {};
@@ -1072,7 +1072,7 @@ var requirejs, require, define;
             d.usingExports = true;
           } else if (depName === "module") {
             // CommonJS module spec 1.1
-            d.values[i] = d.cjsModule = handlers.module(name);
+            d.values[i] = d.cjsModule = handlers.module(name, d.map.url);
           } else if (depName === undefined) {
             d.values[i] = undefined;
           } else {
